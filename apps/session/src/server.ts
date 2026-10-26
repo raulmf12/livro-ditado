@@ -26,12 +26,15 @@ export interface SessionServerOptions extends SessionDeps {
   /** Origens de navegador aceitas. Clientes sem cabeçalho Origin (não navegador) passam pela autenticação normal. */
   allowedOrigins: string[]
   log: Logger
+  /** Troca os limites padrão (testes de carga). */
+  limits?: Partial<typeof LIMITS>
 }
 
 const MAX_MESSAGE_BYTES = 64 * 1024
 
 export function createSessionServer(opts: SessionServerOptions) {
   const { log } = opts
+  const limits = { ...LIMITS, ...opts.limits }
   const sessions = new Map<string, LiveSession>()
   const connectionsByUser = new Map<string, number>()
 
@@ -75,7 +78,7 @@ export function createSessionServer(opts: SessionServerOptions) {
     if (!token) return { status: 401 }
     const user = await opts.verifyToken(token).catch(() => null)
     if (!user) return { status: 401 }
-    if ((connectionsByUser.get(user.userId) ?? 0) >= LIMITS.connectionsPerUser) {
+    if ((connectionsByUser.get(user.userId) ?? 0) >= limits.connectionsPerUser) {
       log.warn('conexões demais para o usuário', { userId: user.userId })
       return { status: 429 }
     }
@@ -84,8 +87,8 @@ export function createSessionServer(opts: SessionServerOptions) {
 
   function handleConnection(ws: WebSocket, user: AuthUser) {
     connectionsByUser.set(user.userId, (connectionsByUser.get(user.userId) ?? 0) + 1)
-    const control = new TokenBucket(LIMITS.control.rate, LIMITS.control.burst)
-    const audio = new TokenBucket(LIMITS.audio.rate, LIMITS.audio.burst)
+    const control = new TokenBucket(limits.control.rate, limits.control.burst)
+    const audio = new TokenBucket(limits.audio.rate, limits.audio.burst)
     let lastLimitWarning = 0
     let session: LiveSession | null = null
     let opening = false

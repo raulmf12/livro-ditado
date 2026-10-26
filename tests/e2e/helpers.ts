@@ -127,8 +127,9 @@ export function wordParagraphs(r: DocxReport) {
 }
 
 /** Abre uma obra nova com o cenário de áudio escolhido no simulador. */
-export async function newBookWithScenario(page: Page, scenario: string, created: string[], who: 'a' | 'b' = 'a') {
-  await login(page, who)
+export async function newBookWithScenario(page: Page, scenario: string, created: string[], who: 'a' | 'b' | null = 'a') {
+  if (who) await login(page, who)
+  else await page.goto('/obra')
   const bookId = await createBookViaUi(page, `${scenario} ${Date.now()}`)
   created.push(bookId)
   const { mockSttControl } = await import('@livro/test-kit')

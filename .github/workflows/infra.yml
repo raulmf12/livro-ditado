@@ -51,6 +51,7 @@ jobs:
           SENTRY_DSN=http://public@mock-stt:4040/1
           SENTRY_ENVIRONMENT=staging
           EXPORT_PORT=4030
+          EXPORT_URL=http://export:4030
           ENV
           cat > /tmp/livro/proxy.env <<ENV
           STAGING_DOMAIN=staging.localhost

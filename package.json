@@ -2,7 +2,9 @@
   "name": "livro-ditado",
   "private": true,
   "packageManager": "pnpm@12.14.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -15,7 +17,9 @@
     "user:create": "pnpm --filter @livro/test-kit user:create",
     "audio:gerar": "pnpm --filter @livro/test-kit audio:gerar",
     "db:push": "supabase db push --linked",
-    "db:rollback": "pnpm --filter @livro/test-kit db:rollback"
+    "db:rollback": "pnpm --filter @livro/test-kit db:rollback",
+    "cenario": "pnpm --silent --filter @livro/test-kit cenario",
+    "benchmark": "pnpm --filter @livro/session benchmark"
   },
   "devDependencies": {
     "turbo": "2.11.10",

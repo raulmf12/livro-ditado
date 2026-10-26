@@ -32,6 +32,9 @@ export default defineConfig({
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html', { open: 'never' }]],
   timeout: 90_000,
   expect: { timeout: 10_000 },
+  // a imagem de referência da prévia (F1.18) é gravada na primeira execução de cada sistema;
+  // depois disso, toda execução compara com ela
+  updateSnapshots: 'missing',
   use: {
     baseURL: BASE_URL,
     locale: 'pt-BR',

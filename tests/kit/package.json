@@ -22,7 +22,8 @@
     "seed": "tsx --env-file-if-exists=../../.env src/seed-cli.ts",
     "user:create": "tsx --env-file-if-exists=../../.env scripts/create-user.ts",
     "db:rollback": "tsx --env-file-if-exists=../../.env scripts/db-rollback.ts",
-    "audio:gerar": "tsx scripts/gerar-audios.ts"
+    "audio:gerar": "tsx scripts/gerar-audios.ts",
+    "cenario": "tsx --env-file-if-exists=../../.env scripts/cenario.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.118.0",
@@ -35,6 +36,7 @@
     "@types/node": "26.6.5",
     "@types/ws": "8.18.2",
     "eslint": "10.13.0",
+    "fractional-indexing": "4.0.0",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vitest": "5.0.5"

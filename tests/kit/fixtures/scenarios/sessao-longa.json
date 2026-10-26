@@ -1,0 +1,38 @@
+{
+  "description": "T.05: ditado simples repetido sem parar, com um novo parágrafo a cada volta, para a sessão longa.",
+  "audio": "ditado-simples.wav",
+  "loop": true,
+  "events": [
+    {
+      "atMs": 700,
+      "kind": "interim",
+      "text": "A função social"
+    },
+    {
+      "atMs": 1500,
+      "kind": "interim",
+      "text": "A função social da propriedade rural"
+    },
+    {
+      "atMs": 2600,
+      "kind": "final",
+      "text": "A função social da propriedade rural é princípio constitucional."
+    },
+    {
+      "atMs": 3400,
+      "kind": "interim",
+      "text": "O imóvel rural deve"
+    },
+    {
+      "atMs": 4800,
+      "kind": "final",
+      "text": "O imóvel rural deve ser explorado de forma racional e adequada."
+    },
+    {
+      "atMs": 5100,
+      "startMs": 4850,
+      "kind": "final",
+      "text": "Atena, novo parágrafo."
+    }
+  ]
+}

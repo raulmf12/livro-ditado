@@ -304,6 +304,8 @@ export function Workspace({ bookId, initialBlocks, settings }: Props) {
         return
       }
       if (!e.altKey || e.ctrlKey || e.metaKey) return
+      // no editor, o BookShortcuts já tratou o atalho
+      if (editor?.view.dom.contains(e.target as Node)) return
       const k = e.code
       if (k === 'KeyR') {
         e.preventDefault()
@@ -324,13 +326,25 @@ export function Workspace({ bookId, initialBlocks, settings }: Props) {
         clientRef.current?.commandKey(false)
       }
     }
+    // dentro do editor, os atalhos chegam como eventos (BookShortcuts), antes dos atalhos de edição do TipTap
+    const toggleRecording = () => {
+      if (recording) stopDictation()
+      else if (status === 'parado') void startDictation()
+    }
+    const togglePreview = () => setPreview((p) => !p)
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
+    window.addEventListener('livro:ditar-aqui', moveDictationCursorToCaret)
+    window.addEventListener('livro:gravar', toggleRecording)
+    window.addEventListener('livro:previa', togglePreview)
     return () => {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
+      window.removeEventListener('livro:ditar-aqui', moveDictationCursorToCaret)
+      window.removeEventListener('livro:gravar', toggleRecording)
+      window.removeEventListener('livro:previa', togglePreview)
     }
-  }, [commandKey, recording, status, commandHeld, startDictation, stopDictation, moveDictationCursorToCaret])
+  }, [editor, commandKey, recording, status, commandHeld, startDictation, stopDictation, moveDictationCursorToCaret])
 
   // ------------------------------------------------------------------ sumário
 

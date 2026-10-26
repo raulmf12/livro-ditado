@@ -92,13 +92,21 @@ export function createMockStt(options: { defaultScenario?: string } = {}) {
       requests.push(request)
     }
 
+    let cycle = 0 // deslocamento de cada volta, nos cenários em loop
     const emitUntil = (ms: number) => {
       if (!scenario) return
-      while (next < scenario.events.length && scenario.events[next]!.atMs <= ms) {
-        const e = scenario.events[next]!
-        const prevAt = next > 0 ? scenario.events[next - 1]!.atMs : 0
-        for (const m of codec.event(e, e.startMs ?? prevAt)) ws.send(m)
-        next++
+      for (;;) {
+        while (next < scenario.events.length && scenario.events[next]!.atMs + cycle <= ms) {
+          const e = scenario.events[next]!
+          const prevAt = next > 0 ? scenario.events[next - 1]!.atMs : 0
+          const shifted = { ...e, atMs: e.atMs + cycle }
+          for (const m of codec.event(shifted, (e.startMs ?? prevAt) + cycle)) ws.send(m)
+          next++
+        }
+        if (!scenario.loop || next < scenario.events.length || !Number.isFinite(ms)) return
+        cycle += scenario.events.at(-1)!.atMs + 500
+        next = 0
+        if (scenario.events[0]!.atMs + cycle > ms) return
       }
     }
 

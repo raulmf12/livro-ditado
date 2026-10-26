@@ -8,7 +8,8 @@
     "start": "tsx --env-file-if-exists=../../.env src/index.ts",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "benchmark": "tsx --env-file-if-exists=../../.env scripts/benchmark.ts"
   },
   "dependencies": {
     "@livro/dictation": "workspace:*",

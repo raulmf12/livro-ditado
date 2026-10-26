@@ -11,6 +11,19 @@ function headingText(b: MBlock, chapter: number | null, section: number | null) 
   return [prefix, b.content].filter(Boolean).join(' ')
 }
 
+/** Texto com as chamadas de nota no ponto onde foram ditadas, como no Word. */
+function withNoteMarks(text: string, notes: { n: number; anchor: number }[]) {
+  const out: React.ReactNode[] = []
+  let at = 0
+  for (const note of notes) {
+    const anchor = Math.min(Math.max(at, note.anchor), text.length)
+    out.push(text.slice(at, anchor), <sup key={note.n}>{note.n}</sup>)
+    at = anchor
+  }
+  out.push(text.slice(at))
+  return out
+}
+
 /**
  * Prévia diagramada (F1.18): o CSS espelha o modelo Word (A4, margens ABNT,
  * Times 12 com entrelinha 1,5, citação longa com recuo de 4 cm). Cada
@@ -18,7 +31,7 @@ function headingText(b: MBlock, chapter: number | null, section: number | null) 
  */
 export function Preview({ manuscript, version }: { manuscript: Manuscript; version: number }) {
   const sheets = useMemo(() => {
-    const out: { key: string; items: { b: MBlock; text: string; notes: { n: number; text: string }[] }[]; notes: { n: number; text: string }[] }[] = []
+    const out: { key: string; items: { b: MBlock; text: string; notes: { n: number; text: string; anchor: number }[] }[]; notes: { n: number; text: string }[] }[] = []
     let chapter: number | null = null
     let section: number | null = null
     let noteNumber = 0
@@ -34,7 +47,9 @@ export function Preview({ manuscript, version }: { manuscript: Manuscript; versi
         section = null
       }
       if (b.type === 'section') section = typeof b.attrs.number === 'number' ? b.attrs.number : null
-      const notes = manuscript.notesOf(b.id).map((n) => ({ n: ++noteNumber, text: n.content }))
+      const notes = manuscript
+        .notesOf(b.id)
+        .map((n) => ({ n: ++noteNumber, text: n.content, anchor: typeof n.attrs.anchor === 'number' ? n.attrs.anchor : b.content.length }))
       sheet.notes.push(...notes)
       const text = b.type === 'paragraph' || b.type === 'quote' ? b.content : headingText(b, chapter, section)
       sheet.items.push({ b, text, notes })
@@ -47,13 +62,13 @@ export function Preview({ manuscript, version }: { manuscript: Manuscript; versi
       {sheets.map((sheet) => (
         <article className="sheet" key={sheet.key}>
           {sheet.items.map(({ b, text, notes }) => {
-            const marks = notes.map((n) => <sup key={n.n}>{n.n}</sup>)
             const ai = b.origin === 'ai' ? ' ai' : ''
             if (b.type === 'chapter') return <h1 key={b.id}>{text}</h1>
             if (b.type === 'section') return <h2 key={b.id}>{text}</h2>
             if (b.type === 'subsection') return <h3 key={b.id}>{text}</h3>
-            if (b.type === 'quote') return <p key={b.id} className={`quote${ai}`}>{text}{marks}</p>
-            return <p key={b.id} className={ai.trim() || undefined}>{text}{marks}</p>
+            const body = withNoteMarks(text, notes)
+            if (b.type === 'quote') return <p key={b.id} className={`quote${ai}`}>{body}</p>
+            return <p key={b.id} className={ai.trim() || undefined}>{body}</p>
           })}
           {sheet.notes.length > 0 && (
             <footer className="sheet-notes">

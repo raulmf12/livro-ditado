@@ -152,6 +152,27 @@ export const UniqueBlockIds = Extension.create({
   },
 })
 
+/**
+ * Atalhos do livro dentro do editor. No Mac, o TipTap usa Option+D como
+ * "apagar para a frente" (herança do Emacs); aqui ele é tomado antes, para
+ * "Ditar aqui" (Alt+D) nunca apagar texto.
+ */
+export const BookShortcuts = Extension.create({
+  name: 'bookShortcuts',
+  priority: 1000,
+  addKeyboardShortcuts() {
+    const emit = (name: string) => () => {
+      this.editor.view.dom.dispatchEvent(new CustomEvent(name, { bubbles: true }))
+      return true
+    }
+    return {
+      'Alt-d': emit('livro:ditar-aqui'),
+      'Alt-r': emit('livro:gravar'),
+      'Alt-p': emit('livro:previa'),
+    }
+  },
+})
+
 export function bookExtensions() {
   return [
     BookDocument,
@@ -165,6 +186,7 @@ export function bookExtensions() {
     UndoRedo,
     DictationCursor,
     UniqueBlockIds,
+    BookShortcuts,
     Placeholder.configure({ placeholder: 'Clique em Gravar e comece a falar, ou digite aqui.' }),
   ]
 }

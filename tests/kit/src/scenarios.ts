@@ -25,6 +25,8 @@ export interface SttScenario {
   events: SttScenarioEvent[]
   /** Se presente, o simulador derruba a conexão ao atingir este ponto do áudio. */
   failAtMs?: number
+  /** Repete os eventos sem parar (sessões longas, T.05). */
+  loop?: boolean
 }
 
 export function loadScenario(name: string): SttScenario {
