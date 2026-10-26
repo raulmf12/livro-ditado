@@ -175,6 +175,9 @@ importers:
 
   apps/session:
     dependencies:
+      '@livro/dictation':
+        specifier: workspace:*
+        version: link:../../packages/dictation
       '@livro/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -191,6 +194,9 @@ importers:
       '@livro/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@livro/test-kit':
+        specifier: workspace:*
+        version: link:../../tests/kit
       '@types/node':
         specifier: 26.6.5
         version: 26.6.5
@@ -252,6 +258,28 @@ importers:
       typescript:
         specifier: 6.0.3
         version: 6.0.3
+
+  packages/dictation:
+    dependencies:
+      fractional-indexing:
+        specifier: 4.0.0
+        version: 4.0.0
+    devDependencies:
+      '@livro/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@types/node':
+        specifier: 26.6.5
+        version: 26.6.5
+      eslint:
+        specifier: 10.13.0
+        version: 10.13.0(supports-color@7.2.0)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/eslint-config:
     dependencies:
@@ -2302,6 +2330,10 @@ packages:
   for-each@0.3.5:
     resolution: {integrity: sha512-dKx12eRCVIzqCxFGplyFKJMPvLEWgmNtUrpTiJIR5u97zEhRG8ySrtboPHZXx7daLxQVrl643cTzbab2tkQjxg==}
     engines: {node: '>= 0.4'}
+
+  fractional-indexing@4.0.0:
+    resolution: {integrity: sha512-Nr2P1Yyaj2sy1Qdt/wI3GcByxrUdbSKg5+cGvw8f18hT2SkQt6V72iOjBpk7IO3UkzBsdlGRs2a4z6dLrJprgw==}
+    engines: {node: ^14.13.1 || >=16.0.0}
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -5238,6 +5270,8 @@ snapshots:
   for-each@0.3.5:
     dependencies:
       is-callable: 1.2.7
+
+  fractional-indexing@4.0.0: {}
 
   fsevents@2.3.3:
     optional: true

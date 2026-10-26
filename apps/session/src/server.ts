@@ -3,7 +3,6 @@ import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
 import {
-  AUDIO_SAMPLE_RATE,
   ClientMessage,
   CloseCode,
   PROTOCOL_VERSION,
@@ -11,53 +10,19 @@ import {
   tokenFromProtocols,
   type ErrorCode,
   type ServerMessage,
-  type TranscriptKind,
 } from '@livro/shared'
+import { LiveSession, type SessionDeps } from './live-session.ts'
 import type { Logger } from './log.ts'
-import type { SttFactory, SttStream } from './stt/index.ts'
+import { LIMITS, TokenBucket } from './rate-limit.ts'
+import type { AuthUser } from './store.ts'
 
-export interface AuthUser {
-  userId: string
-  token: string
-}
+export type { AuthUser, BookStore } from './store.ts'
+export { summarizeLatency, type LatencySummary } from './latency.ts'
 
 export type VerifyToken = (token: string) => Promise<AuthUser | null>
 
-/** Acesso ao banco em nome de um usuário (sujeito às políticas RLS). */
-export interface BookStore {
-  findBook(bookId: string): Promise<{ id: string } | null>
-  startSession(input: { bookId: string; device?: string; sttProvider: string }): Promise<string>
-  saveTranscript(input: {
-    sessionId: string
-    bookId: string
-    kind: TranscriptKind
-    text: string
-    startMs: number
-    endMs: number
-    payload?: unknown
-  }): Promise<void>
-  endSession(sessionId: string, status: 'ended' | 'interrupted', latency: LatencySummary): Promise<void>
-}
-
-export interface LatencySummary {
-  p50Ms: number | null
-  p95Ms: number | null
-  samples: number
-}
-
-const MAX_LATENCY_SAMPLES = 10_000
-
-export function summarizeLatency(values: number[]): LatencySummary {
-  if (values.length === 0) return { p50Ms: null, p95Ms: null, samples: 0 }
-  const sorted = [...values].sort((a, b) => a - b)
-  const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)]!)
-  return { p50Ms: at(0.5), p95Ms: at(0.95), samples: sorted.length }
-}
-
-export interface SessionServerOptions {
+export interface SessionServerOptions extends SessionDeps {
   verifyToken: VerifyToken
-  storeFor: (user: AuthUser) => BookStore
-  stt: { provider: string; create: SttFactory }
   /** Origens de navegador aceitas. Clientes sem cabeçalho Origin (não navegador) passam pela autenticação normal. */
   allowedOrigins: string[]
   log: Logger
@@ -67,10 +32,12 @@ const MAX_MESSAGE_BYTES = 64 * 1024
 
 export function createSessionServer(opts: SessionServerOptions) {
   const { log } = opts
+  const sessions = new Map<string, LiveSession>()
+  const connectionsByUser = new Map<string, number>()
 
   const server: Server = createServer((req, res) => {
     if (req.url === '/health') {
-      res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}')
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, sessions: sessions.size }))
       return
     }
     res.writeHead(404).end()
@@ -87,9 +54,7 @@ export function createSessionServer(opts: SessionServerOptions) {
     void authorizeUpgrade(req).then(
       (result) => {
         if ('status' in result) return rejectUpgrade(socket, result.status)
-        wss.handleUpgrade(req, socket, head, (ws) => {
-          void handleConnection(ws, result.user).catch((err) => log.error('falha na sessão', { err }))
-        })
+        wss.handleUpgrade(req, socket, head, (ws) => handleConnection(ws, result.user))
       },
       (err) => {
         log.error('falha ao autorizar WebSocket', { err })
@@ -110,109 +75,93 @@ export function createSessionServer(opts: SessionServerOptions) {
     if (!token) return { status: 401 }
     const user = await opts.verifyToken(token).catch(() => null)
     if (!user) return { status: 401 }
+    if ((connectionsByUser.get(user.userId) ?? 0) >= LIMITS.connectionsPerUser) {
+      log.warn('conexões demais para o usuário', { userId: user.userId })
+      return { status: 429 }
+    }
     return { user }
   }
 
-  async function handleConnection(ws: WebSocket, user: AuthUser) {
-    const store = opts.storeFor(user)
-    let session: { id: string; bookId: string } | null = null
-    let stt: SttStream | null = null
-    let started = false
-    let finished = false
-    const latencies: number[] = []
-    const sessionLog = (msg: string, fields: Record<string, unknown> = {}) =>
-      log.info(msg, { userId: user.userId, sessionId: session?.id, ...fields })
+  function handleConnection(ws: WebSocket, user: AuthUser) {
+    connectionsByUser.set(user.userId, (connectionsByUser.get(user.userId) ?? 0) + 1)
+    const control = new TokenBucket(LIMITS.control.rate, LIMITS.control.burst)
+    const audio = new TokenBucket(LIMITS.audio.rate, LIMITS.audio.burst)
+    let lastLimitWarning = 0
+    let session: LiveSession | null = null
+    let opening = false
+    let stopped = false
 
     const send = (msg: ServerMessage) => {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg))
     }
-
+    const channel = { send, close: (code: number, reason: string) => ws.close(code, reason) }
     const fail = (code: ErrorCode, closeCode: number) => {
       send({ type: 'error', code, message: friendlyError[code] })
       ws.close(closeCode, code)
     }
-
-    const finish = async (status: 'ended' | 'interrupted') => {
-      if (finished || !session) return
-      finished = true
-      stt?.close()
-      const latency = summarizeLatency(latencies)
-      await store
-        .endSession(session.id, status, latency)
-        .catch((err) => log.error('falha ao encerrar sessão', { err, sessionId: session?.id }))
-      sessionLog('sessão encerrada', { status, latency })
-    }
-
-    const start = async (msg: Extract<ClientMessage, { type: 'start' }>) => {
-      const book = await store.findBook(msg.bookId)
-      if (!book) return fail('book_not_found', CloseCode.BookNotFound)
-
-      const sessionId = await store.startSession({
-        bookId: book.id,
-        device: msg.device,
-        sttProvider: opts.stt.provider,
-      })
-      session = { id: sessionId, bookId: book.id }
-
-      try {
-        stt = await opts.stt.create({
-          bookId: book.id,
-          sessionId,
-          sampleRate: AUDIO_SAMPLE_RATE,
-          language: 'pt-BR',
-          keywords: [],
-        })
-      } catch (err) {
-        log.error('provedor de transcrição indisponível', { err, sessionId, provider: opts.stt.provider })
-        await finish('interrupted')
-        return fail('stt_unavailable', CloseCode.SttUnavailable)
+    const limited = () => {
+      // excesso recebe aviso claro, sem derrubar a sessão (T.02)
+      const now = Date.now()
+      if (now - lastLimitWarning > 1000) {
+        lastLimitWarning = now
+        send({ type: 'error', code: 'rate_limited', message: friendlyError.rate_limited })
       }
-
-      const current = session
-      stt.onTranscript((t) => {
-        send({ type: 'transcript', kind: t.kind, text: t.text, startMs: t.startMs, endMs: t.endMs })
-        if (t.kind === 'final') {
-          void store
-            .saveTranscript({ sessionId: current.id, bookId: current.bookId, ...t })
-            .catch((err) => log.error('falha ao gravar transcrição final', { err, sessionId: current.id }))
-        }
-      })
-      stt.onError((err) => {
-        log.error('erro do provedor de transcrição', { err, sessionId: current.id, provider: opts.stt.provider })
-        fail('stt_unavailable', CloseCode.SttUnavailable)
-      })
-
-      send({ type: 'ready', sessionId })
-      sessionLog('sessão iniciada', { bookId: book.id, provider: opts.stt.provider })
     }
 
     const onMessage = async (data: RawData, isBinary: boolean) => {
       if (isBinary) {
-        // Áudio antes de "ready" é descartado: o cliente só envia depois do aceite.
-        stt?.send(toBuffer(data))
+        if (!audio.take()) return limited()
+        session?.onAudio(toBuffer(data))
         return
       }
+      if (!control.take()) return limited()
       let msg: ClientMessage
       try {
         msg = ClientMessage.parse(JSON.parse(data.toString()))
       } catch {
         return fail('bad_message', CloseCode.BadMessage)
       }
-      if (msg.type === 'start') {
-        if (started) return fail('bad_message', CloseCode.BadMessage)
-        started = true
-        return start(msg)
-      }
-      if (msg.type === 'metric') {
-        if (session && latencies.length < MAX_LATENCY_SAMPLES) latencies.push(msg.value)
-        sessionLog('métrica', { metric: msg.name, value: msg.value })
+
+      if (msg.type === 'start' || msg.type === 'resume') {
+        if (session || opening) return fail('bad_message', CloseCode.BadMessage)
+        opening = true
+        if (msg.type === 'resume') {
+          const existing = sessions.get(msg.sessionId)
+          if (!existing || existing.isEnded || existing.user.userId !== user.userId) {
+            return fail('session_gone', CloseCode.SessionGone)
+          }
+          session = existing
+          session.attach(channel, true)
+          log.info('sessão retomada', { sessionId: session.id, userId: user.userId })
+          return
+        }
+        const opened = await LiveSession.open(opts, user, msg)
+        if (typeof opened === 'string') {
+          return fail(opened, opened === 'book_not_found' ? CloseCode.BookNotFound : CloseCode.SttUnavailable)
+        }
+        sessions.set(opened.id, opened)
+        opened.whenEnded(() => sessions.delete(opened.id))
+        session = opened
+        opened.attach(channel, false)
+        if (ws.readyState !== ws.OPEN) opened.detach(channel)
         return
       }
-      if (msg.type === 'stop') {
-        await stt?.finish()
-        await finish('ended')
-        send({ type: 'ended' })
-        ws.close(1000, 'ended')
+      if (!session) return
+      switch (msg.type) {
+        case 'stop':
+          stopped = true
+          await session.stop()
+          ws.close(1000, 'ended')
+          break
+        case 'command_key':
+          session.onCommandKey(msg.down, msg.audioMs)
+          break
+        case 'cursor':
+          session.onCursor(msg.cursor)
+          break
+        case 'metric':
+          session.onMetric(msg.value)
+          break
       }
     }
 
@@ -222,11 +171,15 @@ export function createSessionServer(opts: SessionServerOptions) {
         fail('internal', 1011)
       })
     })
-    ws.on('close', () => void finish('interrupted'))
+    ws.on('close', () => {
+      connectionsByUser.set(user.userId, Math.max(0, (connectionsByUser.get(user.userId) ?? 1) - 1))
+      if (session && !stopped && !session.isEnded) session.detach(channel)
+    })
   }
 
   return {
     server,
+    sessions,
     listen(port: number, host?: string) {
       return new Promise<number>((resolve) => {
         server.listen(port, host, () => resolve((server.address() as AddressInfo).port))
@@ -244,6 +197,7 @@ function rejectUpgrade(socket: Duplex, status: number) {
     401: 'Unauthorized',
     403: 'Forbidden',
     404: 'Not Found',
+    429: 'Too Many Requests',
     500: 'Internal Server Error',
   }
   socket.end(`HTTP/1.1 ${status} ${text[status] ?? 'Error'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)

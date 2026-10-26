@@ -8,8 +8,10 @@ export const AUDIO_DIR = join(FIXTURES_DIR, 'audio')
 export const CLAUDE_DIR = join(FIXTURES_DIR, 'claude')
 
 export interface SttScenarioEvent {
-  /** Quanto áudio (em ms) o simulador precisa ter recebido para emitir o evento. */
+  /** Quanto áudio (em ms) o simulador precisa ter recebido para emitir o evento. Também é o fim do trecho. */
   atMs: number
+  /** Começo do trecho falado; sem ele, o trecho começa onde o anterior terminou (sem pausa). */
+  startMs?: number
   kind: 'interim' | 'final'
   text: string
 }

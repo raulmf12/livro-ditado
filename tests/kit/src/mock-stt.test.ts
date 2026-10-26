@@ -62,7 +62,7 @@ describe('simulador de STT', () => {
     ws.send(JSON.stringify({ type: 'finish' }))
     await tick()
     expect(msgs.find((m) => m.kind === 'final')?.text).toBe('Atena, busca o artigo 1.228 do Código Civil.')
-    expect(await control.requests()).toMatchObject([{ bookId: 'obra-2', keywords: ['usucapião'], scenario: 'pesquisa-artigo' }])
+    expect(await control.requests()).toMatchObject([{ format: 'neutral', bookId: 'obra-2', keywords: ['usucapião'], scenario: 'pesquisa-artigo' }])
     ws.close()
   })
 

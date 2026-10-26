@@ -1,75 +1,138 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { WebSocket } from 'ws'
-import { PROTOCOL_VERSION, authProtocol, type ServerMessage } from '@livro/shared'
+import { Manuscript, type MBlock, type Op } from '@livro/dictation'
+import { PROTOCOL_VERSION, authProtocol, encodeAudioFrame, type ServerMessage } from '@livro/shared'
 import { silentLogger } from './log.ts'
-import { createSessionServer, summarizeLatency, type BookStore, type LatencySummary } from './server.ts'
+import { createSessionServer, summarizeLatency } from './server.ts'
+import type { BookStore } from './store.ts'
 import type { SttFactory, SttStream, SttTranscript } from './stt/index.ts'
 
 const BOOK_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_BOOK_ID = '22222222-2222-4222-8222-222222222222'
 
-/** STT falso: a cada pedaço de áudio devolve um provisório; no finish, um final. */
-function fakeStt(): { factory: SttFactory; received: number[] } {
-  const received: number[] = []
+/** STT falso: o teste decide quando sai cada resultado. */
+function fakeStt() {
+  const streams: { received: number; emit: (t: SttTranscript) => void; fail: (e: Error) => void; flushes: number }[] = []
+  let failOpen = false
   const factory: SttFactory = async () => {
+    if (failOpen) throw new Error('ECONNREFUSED')
     let listener: (t: SttTranscript) => void = () => {}
+    let onError: (e: Error) => void = () => {}
+    const handle = { received: 0, emit: (t: SttTranscript) => listener(t), fail: (e: Error) => onError(e), flushes: 0 }
+    streams.push(handle)
     const stream: SttStream = {
       send(chunk) {
-        received.push(chunk.length)
-        listener({ kind: 'interim', text: 'o direito', startMs: 0, endMs: 100 })
+        handle.received += chunk.length
       },
-      async finish() {
-        listener({ kind: 'final', text: 'O direito agrário.', startMs: 0, endMs: 900 })
+      flush() {
+        handle.flushes++
       },
+      async finish() {},
       close() {},
       onTranscript(l) {
         listener = l
       },
-      onError() {},
+      onError(l) {
+        onError = l
+      },
     }
     return stream
   }
-  return { factory, received }
+  return {
+    factory,
+    streams,
+    failOpen: (v: boolean) => (failOpen = v),
+    final: (text: string, startMs = 0, endMs = 1000) => streams.at(-1)!.emit({ kind: 'final', text, startMs, endMs }),
+  }
 }
 
+/** Banco em memória com o mesmo contrato do Supabase. */
 function memoryStore() {
-  const saved: string[] = []
-  const sessions = new Map<string, string>()
-  const latency = new Map<string, LatencySummary>()
+  const m = new Manuscript()
+  const versions: { id: number; action: string; row: MBlock }[] = []
+  const state = {
+    sessions: new Map<string, { status: string; audioMs: number; latency: unknown }>(),
+    transcripts: [] as string[],
+    commands: [] as { raw: string; status: string; activation: string }[],
+    segments: [] as { blockId: string | null; isCommand: boolean; bytes: number; seq: number }[],
+    textChanges: [] as unknown[],
+    glossary: ['usucapião'],
+  }
   const store: BookStore = {
     async findBook(bookId) {
-      return bookId === BOOK_ID ? { id: bookId } : null
+      return bookId === BOOK_ID ? { id: bookId, settings: {} } : null
+    },
+    async loadBlocks() {
+      return m.all()
+    },
+    async changesSince(_b, afterId) {
+      const later = versions.filter((v) => v.id > afterId)
+      return {
+        upserts: later.filter((v) => v.action !== 'delete').map((v) => v.row),
+        deletes: later.filter((v) => v.action === 'delete').map((v) => v.row.id),
+        lastId: later.at(-1)?.id ?? afterId,
+      }
+    },
+    async latestVersionId() {
+      return versions.at(-1)?.id ?? 0
+    },
+    async loadSpellingRules() {
+      return [{ id: 'r1', spoken: 'rex', written: 'REsp' }]
+    },
+    async loadGlossary() {
+      return state.glossary
     },
     async startSession() {
       const id = crypto.randomUUID()
-      sessions.set(id, 'active')
+      state.sessions.set(id, { status: 'active', audioMs: 0, latency: null })
       return id
     },
-    async saveTranscript({ text }) {
-      saved.push(text)
+    async applyOps(_b, ops: Op[]) {
+      m.applyAll(ops)
+      for (const op of ops) {
+        const row = op.op === 'insert' || op.op === 'delete' ? op.block : m.get(op.id)!
+        versions.push({ id: versions.length + 1, action: op.op, row: structuredClone(row) })
+      }
     },
-    async endSession(id, status, summary) {
-      sessions.set(id, status)
-      latency.set(id, summary)
+    async saveTranscript({ text }) {
+      state.transcripts.push(text)
+    },
+    async saveCommand(c) {
+      state.commands.push(c)
+    },
+    async saveTextChanges(c) {
+      state.textChanges.push(c)
+    },
+    async saveAudioSegment(s) {
+      state.segments.push({ blockId: s.blockId, isCommand: s.isCommand, bytes: s.wav.length, seq: s.seq })
+    },
+    async updateUsage(id, audioMs) {
+      state.sessions.get(id)!.audioMs = audioMs
+    },
+    async endSession(id, status, latency, audioMs) {
+      state.sessions.set(id, { status, latency, audioMs })
     },
   }
-  return { store, saved, sessions, latency }
+  return { store, m, state }
 }
 
 let app: ReturnType<typeof createSessionServer>
 let url: string
 let stt: ReturnType<typeof fakeStt>
 let mem: ReturnType<typeof memoryStore>
-let sttCreate: SttFactory
+let exported: string[]
 
 beforeEach(async () => {
   stt = fakeStt()
   mem = memoryStore()
-  sttCreate = stt.factory
+  exported = []
   app = createSessionServer({
     verifyToken: async (token) => (token === 'token-valido' ? { userId: 'u1', token } : null),
     storeFor: () => mem.store,
-    stt: { provider: 'fake', create: (o) => sttCreate(o) },
+    stt: { name: 'fake', create: (o) => stt.factory(o), usdPerMinute: 0 },
+    exportBook: async (bookId) => {
+      exported.push(bookId)
+    },
     allowedOrigins: ['http://localhost:3000'],
     log: silentLogger,
   })
@@ -80,118 +143,206 @@ beforeEach(async () => {
 afterEach(() => app.close())
 
 function handshakeStatus(protocols: string[], headers: Record<string, string> = {}) {
-  return new Promise<number>((resolve) => {
+  return new Promise<{ status: number; ws: WebSocket }>((resolve) => {
     const ws = new WebSocket(url, protocols, { headers })
-    ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0))
-    ws.on('open', () => {
-      resolve(101)
-      ws.close()
-    })
+    ws.on('unexpected-response', (_req, res) => resolve({ status: res.statusCode ?? 0, ws }))
+    ws.on('open', () => resolve({ status: 101, ws }))
     ws.on('error', () => {})
   })
 }
 
-function connect(): Promise<{ ws: WebSocket; messages: ServerMessage[]; next: () => Promise<ServerMessage> }> {
-  return new Promise((resolve, reject) => {
+/** Cliente de teste: guarda as mensagens e espera por tipo. */
+function connect() {
+  return new Promise<{
+    ws: WebSocket
+    messages: ServerMessage[]
+    waitFor: <T extends ServerMessage['type']>(type: T, pred?: (m: Extract<ServerMessage, { type: T }>) => boolean) => Promise<Extract<ServerMessage, { type: T }>>
+    closed: Promise<number>
+    audio: (from: number, to: number) => void
+  }>((resolve, reject) => {
     const ws = new WebSocket(url, [PROTOCOL_VERSION, authProtocol('token-valido')])
     const messages: ServerMessage[] = []
-    const waiting: ((m: ServerMessage) => void)[] = []
+    const waiters: (() => void)[] = []
     ws.on('message', (data) => {
-      const msg = JSON.parse(data.toString()) as ServerMessage
-      messages.push(msg)
-      waiting.shift()?.(msg)
+      messages.push(JSON.parse(data.toString()) as ServerMessage)
+      for (const w of waiters.splice(0)) w()
     })
-    let read = 0
-    const next = () =>
-      new Promise<ServerMessage>((r) => {
-        if (read < messages.length) r(messages[read++]!)
-        else
-          waiting.push((m) => {
-            read++
-            r(m)
-          })
+    const closed = new Promise<number>((r) => ws.on('close', (code) => r(code)))
+    const waitFor = <T extends ServerMessage['type']>(type: T, pred: (m: Extract<ServerMessage, { type: T }>) => boolean = () => true) =>
+      new Promise<Extract<ServerMessage, { type: T }>>((r, rej) => {
+        const timer = setTimeout(() => rej(new Error(`não chegou "${type}"; recebidas: ${messages.map((m) => m.type).join(', ')}`)), 2000)
+        const check = () => {
+          const found = messages.find((m) => m.type === type && pred(m as Extract<ServerMessage, { type: T }>))
+          if (found) {
+            clearTimeout(timer)
+            r(found as Extract<ServerMessage, { type: T }>)
+          } else waiters.push(check)
+        }
+        check()
       })
-    ws.on('open', () => resolve({ ws, messages, next }))
+    const audio = (from: number, to: number) => {
+      for (let seq = from; seq <= to; seq++) ws.send(encodeAudioFrame(seq, new ArrayBuffer(3200)))
+    }
+    ws.on('open', () => resolve({ ws, messages, waitFor, closed, audio }))
     ws.on('error', reject)
   })
 }
 
-const closed = (ws: WebSocket) => new Promise<number>((r) => ws.on('close', (code) => r(code)))
+const settle = () => new Promise((r) => setTimeout(r, 50))
+const texts = () => mem.m.ordered().map((b) => `${b.type}: ${b.content}`)
 
 describe('handshake', () => {
-  it('recusa sem token com 401', async () => {
-    expect(await handshakeStatus([PROTOCOL_VERSION])).toBe(401)
+  it('recusa sem token, com token inválido e de outro site', async () => {
+    expect((await handshakeStatus([PROTOCOL_VERSION])).status).toBe(401)
+    expect((await handshakeStatus([PROTOCOL_VERSION, authProtocol('forjado')])).status).toBe(401)
+    expect((await handshakeStatus([PROTOCOL_VERSION, authProtocol('token-valido')], { Origin: 'https://evil.example' })).status).toBe(403)
   })
 
-  it('recusa token inválido com 401', async () => {
-    expect(await handshakeStatus([PROTOCOL_VERSION, authProtocol('forjado')])).toBe(401)
-  })
-
-  it('recusa origem de outro site com 403', async () => {
-    expect(
-      await handshakeStatus([PROTOCOL_VERSION, authProtocol('token-valido')], { Origin: 'https://evil.example' }),
-    ).toBe(403)
-  })
-
-  it('aceita token válido vindo do domínio do app', async () => {
-    expect(
-      await handshakeStatus([PROTOCOL_VERSION, authProtocol('token-valido')], { Origin: 'http://localhost:3000' }),
-    ).toBe(101)
+  it('aceita o app e limita conexões simultâneas por usuário (T.02)', async () => {
+    const open: WebSocket[] = []
+    for (let i = 0; i < 4; i++) {
+      const r = await handshakeStatus([PROTOCOL_VERSION, authProtocol('token-valido')], { Origin: 'http://localhost:3000' })
+      expect(r.status).toBe(101)
+      open.push(r.ws)
+    }
+    expect((await handshakeStatus([PROTOCOL_VERSION, authProtocol('token-valido')])).status).toBe(429)
+    for (const ws of open) ws.close()
   })
 })
 
 describe('sessão de ditado', () => {
-  it('repassa o áudio, devolve provisórios e grava só os finais', async () => {
-    const { ws, next } = await connect()
-    ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
-    const ready = await next()
-    expect(ready.type).toBe('ready')
+  it('ditado entra no manuscrito, com áudio do trecho ligado ao parágrafo', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    await c.waitFor('ready')
+    c.audio(1, 10)
+    await c.waitFor('ack', (m) => m.seq === 10)
+    stt.final('No rex, a posse agrária exige exploração.', 0, 1000)
+    const ops = await c.waitFor('ops')
+    expect(ops.ops[0]).toMatchObject({ op: 'insert', block: { type: 'paragraph' } })
+    await settle()
 
-    ws.send(Buffer.alloc(3200))
-    expect(await next()).toMatchObject({ type: 'transcript', kind: 'interim', text: 'o direito' })
-    for (const value of [300, 500, 900]) ws.send(JSON.stringify({ type: 'metric', name: 'speech_to_text_ms', value }))
+    expect(texts()).toEqual(['paragraph: No REsp, a posse agrária exige exploração.'])
+    expect(mem.state.textChanges).toHaveLength(1) // a troca de grafia ficou registrada
+    expect(mem.state.transcripts).toEqual(['No rex, a posse agrária exige exploração.'])
 
-    const closing = closed(ws)
-    ws.send(JSON.stringify({ type: 'stop' }))
-    expect(await next()).toMatchObject({ type: 'transcript', kind: 'final', text: 'O direito agrário.' })
-    expect(await next()).toEqual({ type: 'ended' })
-    expect(await closing).toBe(1000)
-
-    expect(stt.received).toEqual([3200])
-    expect(mem.saved).toEqual(['O direito agrário.'])
-    expect([...mem.sessions.values()]).toEqual(['ended'])
-    expect([...mem.latency.values()]).toEqual([{ p50Ms: 500, p95Ms: 900, samples: 3 }])
+    c.ws.send(JSON.stringify({ type: 'stop' }))
+    await c.waitFor('ended')
+    expect(await c.closed).toBe(1000)
+    const [paragraph] = mem.m.ordered()
+    expect(mem.state.segments[0]).toMatchObject({ blockId: paragraph!.id, isCommand: false, seq: 0 })
+    expect([...mem.state.sessions.values()][0]).toMatchObject({ status: 'ended', audioMs: 1000 })
+    expect(exported).toEqual([BOOK_ID]) // exportação automática ao fim da sessão (F1.25)
   })
 
-  it('não abre sessão em obra que o usuário não enxerga', async () => {
-    const { ws, next } = await connect()
-    const closing = closed(ws)
-    ws.send(JSON.stringify({ type: 'start', bookId: OTHER_BOOK_ID }))
-    expect(await next()).toMatchObject({ type: 'error', code: 'book_not_found' })
-    expect(await closing).toBe(4404)
-    expect(mem.sessions.size).toBe(0)
+  it('comando por palavra de ativação: faixa de confirmação e capítulo criado', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    await c.waitFor('ready')
+    stt.final('Atena, capítulo três, Da posse agrária. Fim.')
+    expect(await c.waitFor('command')).toEqual({ type: 'command', status: 'executed', label: 'Capítulo 3: Da posse agrária' })
+    await settle()
+    expect(texts()).toEqual(['chapter: Da posse agrária'])
+    expect(mem.state.commands).toMatchObject([{ status: 'executed', activation: 'wake_word' }])
   })
 
-  it('avisa de forma amigável quando o provedor de transcrição cai', async () => {
-    sttCreate = async () => {
-      throw new Error('ECONNREFUSED')
-    }
-    const { ws, next } = await connect()
-    const closing = closed(ws)
-    ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
-    const msg = await next()
-    expect(msg).toMatchObject({ type: 'error', code: 'stt_unavailable' })
-    expect(msg.type === 'error' && msg.message).not.toMatch(/ECONNREFUSED/)
-    expect(await closing).toBe(4503)
-    expect([...mem.sessions.values()]).toEqual(['interrupted'])
+  it('tecla de comando segurada: o trecho vira comando sem a palavra (F1.11)', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    await c.waitFor('ready')
+    c.audio(1, 12)
+    c.ws.send(JSON.stringify({ type: 'command_key', down: true, audioMs: 0 }))
+    c.ws.send(JSON.stringify({ type: 'command_key', down: false, audioMs: 1200 }))
+    await settle()
+    expect(stt.streams[0]!.flushes).toBe(1) // soltar a tecla fecha o trecho no provedor
+    stt.final('capítulo dois, Da propriedade', 100, 1100)
+    await c.waitFor('command')
+    await settle()
+    expect(texts()).toEqual(['chapter: Da propriedade'])
+    expect(mem.state.commands).toMatchObject([{ activation: 'key' }])
   })
 
-  it('fecha a conexão diante de mensagem inválida', async () => {
-    const { ws, next } = await connect()
-    const closing = closed(ws)
-    ws.send('isto não é json')
-    expect(await next()).toMatchObject({ type: 'error', code: 'bad_message' })
-    expect(await closing).toBe(4400)
+  it('queda de conexão: o navegador retoma e nada se perde (F1.02)', async () => {
+    const first = await connect()
+    first.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    const { sessionId } = await first.waitFor('ready')
+    first.audio(1, 10)
+    await first.waitFor('ack', (m) => m.seq === 10)
+    first.ws.terminate() // rede caiu
+    await settle()
+
+    // enquanto o navegador está fora, o provedor ainda devolve um final
+    stt.final('Texto ditado durante a queda.')
+    await settle()
+
+    const second = await connect()
+    second.ws.send(JSON.stringify({ type: 'resume', sessionId }))
+    expect(await second.waitFor('resumed')).toMatchObject({ ackSeq: 10 })
+    await second.waitFor('ops') // o que aconteceu durante a queda chega depois da volta
+    second.audio(8, 15) // reenvio a partir de um ponto anterior: duplicados são ignorados
+    await second.waitFor('ack', (m) => m.seq === 15)
+    expect(stt.streams[0]!.received).toBe(15 * 3200)
+
+    second.ws.send(JSON.stringify({ type: 'stop' }))
+    await second.waitFor('ended')
+    expect(texts()).toEqual(['paragraph: Texto ditado durante a queda.'])
+  })
+
+  it('retomar sessão que não existe', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'resume', sessionId: crypto.randomUUID() }))
+    expect(await c.waitFor('error')).toMatchObject({ code: 'session_gone' })
+    expect(await c.closed).toBe(4410)
+  })
+
+  it('provedor cai: reconecta, reenvia o áudio sem final e segue', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    await c.waitFor('ready')
+    c.audio(1, 10)
+    await c.waitFor('ack', (m) => m.seq === 10)
+    stt.streams[0]!.fail(new Error('provedor caiu'))
+    await settle()
+    expect(stt.streams).toHaveLength(2)
+    expect(stt.streams[1]!.received).toBe(10 * 3200) // o segundo stream recebeu o áudio de novo
+    stt.final('Depois da queda do provedor.')
+    await c.waitFor('ops')
+  })
+
+  it('provedor indisponível na abertura: aviso amigável', async () => {
+    stt.failOpen(true)
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    const msg = await c.waitFor('error')
+    expect(msg).toMatchObject({ code: 'stt_unavailable' })
+    expect(msg.message).not.toMatch(/ECONNREFUSED/)
+    expect(await c.closed).toBe(4503)
+    expect([...mem.state.sessions.values()][0]).toMatchObject({ status: 'interrupted' })
+  })
+
+  it('obra de outro usuário', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: OTHER_BOOK_ID }))
+    expect(await c.waitFor('error')).toMatchObject({ code: 'book_not_found' })
+    expect(await c.closed).toBe(4404)
+  })
+
+  it('excesso de mensagens recebe aviso e o ditado continua (T.02)', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    await c.waitFor('ready')
+    for (let i = 0; i < 100; i++) c.ws.send(JSON.stringify({ type: 'metric', name: 'speech_to_text_ms', value: 100 }))
+    expect(await c.waitFor('error')).toMatchObject({ code: 'rate_limited' })
+    c.audio(1, 5)
+    await c.waitFor('ack', (m) => m.seq === 5)
+    expect(c.ws.readyState).toBe(WebSocket.OPEN)
+  })
+
+  it('mensagem inválida fecha a conexão', async () => {
+    const c = await connect()
+    c.ws.send('isto não é json')
+    expect(await c.waitFor('error')).toMatchObject({ code: 'bad_message' })
+    expect(await c.closed).toBe(4400)
   })
 })
 

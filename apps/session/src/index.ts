@@ -2,7 +2,7 @@ import { jsonLogger } from './log.ts'
 import { flushSentry, sentryReporter } from './observability.ts'
 import { createSessionServer } from './server.ts'
 import { sttFromEnv } from './stt/index.ts'
-import { supabaseStoreFactory, supabaseVerifier } from './supabase.ts'
+import { exportClient, supabaseStoreFactory, supabaseVerifier } from './supabase.ts'
 
 const env = process.env
 const log = jsonLogger({ service: 'session' }, sentryReporter(env))
@@ -20,6 +20,7 @@ const app = createSessionServer({
   verifyToken: supabaseVerifier(supabaseUrl, publishableKey),
   storeFor: supabaseStoreFactory(supabaseUrl, publishableKey),
   stt: sttFromEnv(env),
+  exportBook: env.EXPORT_URL ? exportClient(env.EXPORT_URL) : undefined,
   allowedOrigins: (env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   log,
 })
