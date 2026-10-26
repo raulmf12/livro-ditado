@@ -30,6 +30,12 @@ export const ClientMessage = z.discriminatedUnion('type', [
     device: z.string().max(200).optional(),
   }),
   z.object({ type: z.literal('stop') }),
+  /** Latência medida no navegador: do fim do áudio de um trecho até o texto final na tela. */
+  z.object({
+    type: z.literal('metric'),
+    name: z.literal('speech_to_text_ms'),
+    value: z.number().nonnegative().max(120_000),
+  }),
 ])
 export type ClientMessage = z.infer<typeof ClientMessage>
 

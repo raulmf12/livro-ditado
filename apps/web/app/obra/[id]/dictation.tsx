@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { PROTOCOL_VERSION, ServerMessage, authProtocol } from '@livro/shared'
+import * as Sentry from '@sentry/nextjs'
+import { AUDIO_CHUNK_MS, AudioClock, PROTOCOL_VERSION, ServerMessage, authProtocol } from '@livro/shared'
 import { startRecorder, type Recorder } from '@/lib/audio/recorder'
 import { createClient } from '@/lib/supabase/client'
 
@@ -54,6 +55,18 @@ export function Dictation({ bookId }: { bookId: string }) {
     ws.binaryType = 'arraybuffer'
     wsRef.current = ws
     let serverError = false
+    let sessionId: string | null = null
+    const clock = new AudioClock()
+
+    /** Mede a latência fala → tela depois que o texto final foi pintado. */
+    const reportLatency = (endMs: number) => {
+      requestAnimationFrame(() => {
+        const sentAt = clock.sentAt(endMs)
+        if (sentAt === null || ws.readyState !== WebSocket.OPEN) return
+        const value = Math.round(performance.now() - sentAt)
+        ws.send(JSON.stringify({ type: 'metric', name: 'speech_to_text_ms', value }))
+      })
+    }
 
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'start', bookId, device: navigator.userAgent.slice(0, 200) }))
@@ -65,10 +78,14 @@ export function Dictation({ bookId }: { bookId: string }) {
       const msg = parsed.data
       switch (msg.type) {
         case 'ready':
+          sessionId = msg.sessionId
+          Sentry.setTag('sessionId', msg.sessionId)
           try {
             recorderRef.current = await startRecorder({
               onChunk: (pcm) => {
-                if (ws.readyState === WebSocket.OPEN) ws.send(pcm)
+                if (ws.readyState !== WebSocket.OPEN) return
+                ws.send(pcm)
+                clock.record(AUDIO_CHUNK_MS, performance.now())
               },
               onLevel: (l) => setLevel(Math.min(1, l * 4)),
             })
@@ -82,6 +99,7 @@ export function Dictation({ bookId }: { bookId: string }) {
           if (msg.kind === 'final') {
             setFinals((f) => [...f, msg.text])
             setInterim('')
+            reportLatency(msg.endMs)
           } else {
             setInterim(msg.text)
           }
@@ -89,6 +107,7 @@ export function Dictation({ bookId }: { bookId: string }) {
         case 'error':
           serverError = true
           setError(msg.message)
+          Sentry.captureMessage(`aviso ao autor: ${msg.code}`, { level: 'warning', tags: { sessionId, code: msg.code } })
           break
         case 'ended':
           break
@@ -100,7 +119,13 @@ export function Dictation({ bookId }: { bookId: string }) {
       setInterim('')
       setStatus('parado')
       if (wsRef.current === ws) wsRef.current = null
-      if (event.code !== 1000 && !serverError) setError(LOST_CONNECTION)
+      if (event.code !== 1000 && !serverError) {
+        setError(LOST_CONNECTION)
+        Sentry.captureMessage('conexão com o servidor de sessão caiu', {
+          level: 'warning',
+          tags: { sessionId, closeCode: String(event.code) },
+        })
+      }
     }
   }
 

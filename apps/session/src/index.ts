@@ -1,10 +1,11 @@
 import { jsonLogger } from './log.ts'
+import { flushSentry, sentryReporter } from './observability.ts'
 import { createSessionServer } from './server.ts'
 import { sttFromEnv } from './stt/index.ts'
 import { supabaseStoreFactory, supabaseVerifier } from './supabase.ts'
 
 const env = process.env
-const log = jsonLogger({ service: 'session' })
+const log = jsonLogger({ service: 'session' }, sentryReporter(env))
 
 function required(name: string): string {
   const v = env[name]
@@ -28,6 +29,9 @@ log.info('servidor de sessão no ar', { port, provider: env.STT_PROVIDER ?? 'moc
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    void app.close().then(() => process.exit(0))
+    void app
+      .close()
+      .then(flushSentry)
+      .then(() => process.exit(0))
   })
 }

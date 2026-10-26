@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@livro/shared": "workspace:*",
+    "@sentry/node": "11.9.0",
     "@supabase/supabase-js": "2.118.0",
     "ws": "8.22.0"
   },

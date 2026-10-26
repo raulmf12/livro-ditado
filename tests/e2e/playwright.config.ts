@@ -8,7 +8,16 @@ try {
 
 const CI = !!process.env.CI
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
-const sttControl = process.env.MOCK_STT_CONTROL_URL ?? 'http://localhost:4010'
+const sentryPort = process.env.MOCK_SENTRY_PORT ?? '4040'
+
+/** Os servidores de teste mandam erros para o simulador do Sentry, nunca para o Sentry real. */
+const serverEnv: Record<string, string> = {
+  ...(Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) as Record<string, string>),
+  SENTRY_DSN: `http://public@localhost:${sentryPort}/1`,
+  NEXT_PUBLIC_SENTRY_DSN: `http://public@localhost:${sentryPort}/1`,
+  SENTRY_ENVIRONMENT: 'e2e',
+  NEXT_PUBLIC_SENTRY_ENVIRONMENT: 'e2e',
+}
 
 export default defineConfig({
   testDir: './specs',
@@ -34,19 +43,21 @@ export default defineConfig({
         {
           name: 'simuladores',
           command: 'pnpm --filter @livro/test-kit dev',
-          url: `${sttControl}/health`,
+          url: `http://localhost:${sentryPort}/health`,
           reuseExistingServer: !CI,
         },
         {
           name: 'sessão',
           command: 'pnpm --filter @livro/session start',
           url: 'http://localhost:4001/health',
+          env: serverEnv,
           reuseExistingServer: !CI,
         },
         {
           name: 'web',
           command: 'pnpm --filter @livro/web build && pnpm --filter @livro/web start',
           url: `${BASE_URL}/login`,
+          env: serverEnv,
           timeout: 240_000,
           reuseExistingServer: !CI,
         },

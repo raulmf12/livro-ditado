@@ -36,7 +36,22 @@ export interface BookStore {
     endMs: number
     payload?: unknown
   }): Promise<void>
-  endSession(sessionId: string, status: 'ended' | 'interrupted'): Promise<void>
+  endSession(sessionId: string, status: 'ended' | 'interrupted', latency: LatencySummary): Promise<void>
+}
+
+export interface LatencySummary {
+  p50Ms: number | null
+  p95Ms: number | null
+  samples: number
+}
+
+const MAX_LATENCY_SAMPLES = 10_000
+
+export function summarizeLatency(values: number[]): LatencySummary {
+  if (values.length === 0) return { p50Ms: null, p95Ms: null, samples: 0 }
+  const sorted = [...values].sort((a, b) => a - b)
+  const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)]!)
+  return { p50Ms: at(0.5), p95Ms: at(0.95), samples: sorted.length }
 }
 
 export interface SessionServerOptions {
@@ -104,6 +119,7 @@ export function createSessionServer(opts: SessionServerOptions) {
     let stt: SttStream | null = null
     let started = false
     let finished = false
+    const latencies: number[] = []
     const sessionLog = (msg: string, fields: Record<string, unknown> = {}) =>
       log.info(msg, { userId: user.userId, sessionId: session?.id, ...fields })
 
@@ -120,10 +136,11 @@ export function createSessionServer(opts: SessionServerOptions) {
       if (finished || !session) return
       finished = true
       stt?.close()
+      const latency = summarizeLatency(latencies)
       await store
-        .endSession(session.id, status)
+        .endSession(session.id, status, latency)
         .catch((err) => log.error('falha ao encerrar sessão', { err, sessionId: session?.id }))
-      sessionLog('sessão encerrada', { status })
+      sessionLog('sessão encerrada', { status, latency })
     }
 
     const start = async (msg: Extract<ClientMessage, { type: 'start' }>) => {
@@ -185,6 +202,11 @@ export function createSessionServer(opts: SessionServerOptions) {
         if (started) return fail('bad_message', CloseCode.BadMessage)
         started = true
         return start(msg)
+      }
+      if (msg.type === 'metric') {
+        if (session && latencies.length < MAX_LATENCY_SAMPLES) latencies.push(msg.value)
+        sessionLog('métrica', { metric: msg.name, value: msg.value })
+        return
       }
       if (msg.type === 'stop') {
         await stt?.finish()

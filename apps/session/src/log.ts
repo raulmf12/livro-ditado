@@ -2,12 +2,15 @@ type Level = 'debug' | 'info' | 'warn' | 'error'
 
 export type Logger = Record<Level, (msg: string, fields?: Record<string, unknown>) => void>
 
-/** Logs estruturados em JSON, uma linha por evento. */
-export function jsonLogger(base: Record<string, unknown> = {}): Logger {
+export type ErrorReporter = (msg: string, fields: Record<string, unknown>) => void
+
+/** Logs estruturados em JSON, uma linha por evento. Erros também vão para `reportError` (Sentry). */
+export function jsonLogger(base: Record<string, unknown> = {}, reportError?: ErrorReporter): Logger {
   const write = (level: Level) => (msg: string, fields: Record<string, unknown> = {}) => {
     const line = JSON.stringify({ time: new Date().toISOString(), level, msg, ...base, ...fields }, errorReplacer)
     if (level === 'error' || level === 'warn') process.stderr.write(line + '\n')
     else process.stdout.write(line + '\n')
+    if (level === 'error') reportError?.(msg, fields)
   }
   return { debug: write('debug'), info: write('info'), warn: write('warn'), error: write('error') }
 }

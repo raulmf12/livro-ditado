@@ -1,6 +1,7 @@
 export * from './scenarios.ts'
 export * from './mock-stt.ts'
 export * from './mock-claude.ts'
+export * from './mock-sentry.ts'
 export * from './seed.ts'
 export * from './supabase.ts'
 export * from './word.ts'

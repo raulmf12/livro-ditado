@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { WebSocket } from 'ws'
 import { PROTOCOL_VERSION, authProtocol, type ServerMessage } from '@livro/shared'
 import { silentLogger } from './log.ts'
-import { createSessionServer, type BookStore } from './server.ts'
+import { createSessionServer, summarizeLatency, type BookStore, type LatencySummary } from './server.ts'
 import type { SttFactory, SttStream, SttTranscript } from './stt/index.ts'
 
 const BOOK_ID = '11111111-1111-4111-8111-111111111111'
@@ -35,6 +35,7 @@ function fakeStt(): { factory: SttFactory; received: number[] } {
 function memoryStore() {
   const saved: string[] = []
   const sessions = new Map<string, string>()
+  const latency = new Map<string, LatencySummary>()
   const store: BookStore = {
     async findBook(bookId) {
       return bookId === BOOK_ID ? { id: bookId } : null
@@ -47,11 +48,12 @@ function memoryStore() {
     async saveTranscript({ text }) {
       saved.push(text)
     },
-    async endSession(id, status) {
+    async endSession(id, status, summary) {
       sessions.set(id, status)
+      latency.set(id, summary)
     },
   }
-  return { store, saved, sessions }
+  return { store, saved, sessions, latency }
 }
 
 let app: ReturnType<typeof createSessionServer>
@@ -147,6 +149,7 @@ describe('sessão de ditado', () => {
 
     ws.send(Buffer.alloc(3200))
     expect(await next()).toMatchObject({ type: 'transcript', kind: 'interim', text: 'o direito' })
+    for (const value of [300, 500, 900]) ws.send(JSON.stringify({ type: 'metric', name: 'speech_to_text_ms', value }))
 
     const closing = closed(ws)
     ws.send(JSON.stringify({ type: 'stop' }))
@@ -157,6 +160,7 @@ describe('sessão de ditado', () => {
     expect(stt.received).toEqual([3200])
     expect(mem.saved).toEqual(['O direito agrário.'])
     expect([...mem.sessions.values()]).toEqual(['ended'])
+    expect([...mem.latency.values()]).toEqual([{ p50Ms: 500, p95Ms: 900, samples: 3 }])
   })
 
   it('não abre sessão em obra que o usuário não enxerga', async () => {
@@ -188,5 +192,16 @@ describe('sessão de ditado', () => {
     ws.send('isto não é json')
     expect(await next()).toMatchObject({ type: 'error', code: 'bad_message' })
     expect(await closing).toBe(4400)
+  })
+})
+
+describe('summarizeLatency', () => {
+  it('calcula p50 e p95 pelo método do posto mais próximo', () => {
+    const values = Array.from({ length: 100 }, (_, i) => i + 1)
+    expect(summarizeLatency(values)).toEqual({ p50Ms: 50, p95Ms: 95, samples: 100 })
+  })
+
+  it('sessão sem amostras fica sem latência', () => {
+    expect(summarizeLatency([])).toEqual({ p50Ms: null, p95Ms: null, samples: 0 })
   })
 })
