@@ -1,0 +1,9 @@
+{
+  "description": "Pedido de artigo de lei por voz (usado a partir de F2.07).",
+  "audio": "pesquisa-artigo.wav",
+  "speech": "Atena, busca o artigo mil duzentos e vinte e oito do Código Civil.",
+  "events": [
+    { "atMs": 1500, "kind": "interim", "text": "Atena busca o artigo" },
+    { "atMs": 3600, "kind": "final", "text": "Atena, busca o artigo 1.228 do Código Civil." }
+  ]
+}

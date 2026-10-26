@@ -1,0 +1,76 @@
+# F0.03 — CI: lint, typecheck e unitários em todo push/PR; integração e E2E
+# (com os simuladores de STT e do Claude) em todo PR e na main.
+# Deploy de staging no merge e de produção por tag entram com F0.02.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, typecheck e unitários
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @livro/test-kit setup:py
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  e2e:
+    name: Integração e E2E
+    runs-on: ubuntu-latest
+    needs: checks
+    # A integração e o E2E usam o projeto Supabase de desenvolvimento; um PR de
+    # fork não recebe os segredos e não roda esta etapa.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: supabase-dev
+      cancel-in-progress: false
+    env:
+      CI: 'true'
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      SESSION_PORT: '4001'
+      NEXT_PUBLIC_SESSION_WS_URL: ws://localhost:4001/ws
+      ALLOWED_ORIGINS: http://localhost:3000
+      STT_PROVIDER: mock
+      MOCK_STT_URL: ws://localhost:4010/stt
+      MOCK_STT_CONTROL_URL: http://localhost:4010
+      MOCK_CLAUDE_PORT: '4020'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @livro/test-kit setup:py
+      - run: pnpm test:integration
+      - run: pnpm --filter @livro/e2e exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report
+          retention-days: 7

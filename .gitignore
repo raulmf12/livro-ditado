@@ -1,0 +1,24 @@
+node_modules/
+.next/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+.DS_Store
+
+# segredos
+.env
+.env.*
+!.env.example
+
+# supabase
+supabase/.temp/
+supabase/.branches/
+
+# testes
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+tests/e2e/.auth/
+tests/kit/word_verifier/.venv/
+__pycache__/
+.pytest_cache/

@@ -1,0 +1,15 @@
+{
+  "description": "Interpretação correta do pedido do artigo 1.228 do Código Civil.",
+  "match": "1\\.228",
+  "response": {
+    "stop_reason": "tool_use",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_busca_1228",
+        "name": "buscar_dispositivo",
+        "input": { "tipo": "lei", "norma": "Código Civil", "artigo": "1.228", "paragrafo": null, "inciso": null }
+      }
+    ]
+  }
+}

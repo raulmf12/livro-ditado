@@ -1,0 +1,4 @@
+python-docx==1.2.0
+lxml>=5
+pypandoc_binary==1.17
+pytest==9.1.1

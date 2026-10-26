@@ -1,0 +1,9 @@
+{
+  "description": "Frases do domínio que não podem disparar comando (usado a partir de F1.15).",
+  "audio": "comando-normativo.wav",
+  "speech": "O comando normativo do artigo cento e oitenta e seis define a função social. A coruja de Atena simboliza a sabedoria.",
+  "events": [
+    { "atMs": 3800, "kind": "final", "text": "O comando normativo do artigo 186 define a função social." },
+    { "atMs": 6400, "kind": "final", "text": "A coruja de Atena simboliza a sabedoria." }
+  ]
+}

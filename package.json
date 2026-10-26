@@ -1,0 +1,24 @@
+{
+  "name": "livro-ditado",
+  "private": true,
+  "packageManager": "pnpm@12.14.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "pnpm --filter @livro/e2e e2e",
+    "seed": "pnpm --filter @livro/test-kit seed",
+    "user:create": "pnpm --filter @livro/test-kit user:create",
+    "audio:gerar": "pnpm --filter @livro/test-kit audio:gerar",
+    "db:push": "supabase db push --linked",
+    "db:rollback": "pnpm --filter @livro/test-kit db:rollback"
+  },
+  "devDependencies": {
+    "turbo": "2.11.10",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@livro/test-kit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mock-stt": "./src/mock-stt.ts",
+    "./mock-claude": "./src/mock-claude.ts",
+    "./seed": "./src/seed.ts",
+    "./word": "./src/word.ts",
+    "./scenarios": "./src/scenarios.ts"
+  },
+  "scripts": {
+    "dev": "tsx --env-file-if-exists=../../.env src/mocks-cli.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && pnpm run test:py",
+    "test:py": "word_verifier/.venv/bin/python -m pytest -q word_verifier",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "setup:py": "uv venv --allow-existing word_verifier/.venv && uv pip install --python word_verifier/.venv -r word_verifier/requirements.txt",
+    "seed": "tsx --env-file-if-exists=../../.env src/seed-cli.ts",
+    "user:create": "tsx --env-file-if-exists=../../.env scripts/create-user.ts",
+    "db:rollback": "tsx --env-file-if-exists=../../.env scripts/db-rollback.ts",
+    "audio:gerar": "tsx scripts/gerar-audios.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
+    "@livro/eslint-config": "workspace:*",
+    "@types/node": "26.6.5",
+    "@types/ws": "8.18.2",
+    "eslint": "10.13.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

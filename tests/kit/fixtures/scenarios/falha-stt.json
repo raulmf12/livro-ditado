@@ -1,0 +1,6 @@
+{
+  "description": "O provedor responde um provisório e cai no meio do ditado.",
+  "audio": "ditado-simples.wav",
+  "events": [{ "atMs": 500, "kind": "interim", "text": "A função" }],
+  "failAtMs": 1200
+}

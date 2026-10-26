@@ -1,0 +1,18 @@
+{
+  "description": "Resposta maliciosa: devolve o caput do art. 1.228 com uma palavra trocada (\"dever\" no lugar de \"direito\"). A checagem de literalidade (F2.09) precisa bloquear.",
+  "match": "TRECHO_ALTERADO",
+  "response": {
+    "stop_reason": "tool_use",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_mock_trecho_alterado",
+        "name": "propor_citacao",
+        "input": {
+          "fonte": "Lei 10.406/2002, art. 1.228",
+          "trecho": "O proprietário tem a faculdade de usar, gozar e dispor da coisa, e o dever de reavê-la do poder de quem quer que injustamente a possua ou detenha."
+        }
+      }
+    ]
+  }
+}

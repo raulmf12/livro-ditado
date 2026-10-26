@@ -1,0 +1,11 @@
+{
+  "description": "Comandos de capítulo e seção seguidos de ditado (usado a partir de F1.12).",
+  "audio": "comandos-estrutura.wav",
+  "speech": "Atena, capítulo três, Da posse agrária. Fim. A posse agrária exige a exploração efetiva da terra. Atena, seção um, Conceito. Fim.",
+  "events": [
+    { "atMs": 1200, "kind": "interim", "text": "Atena capítulo três" },
+    { "atMs": 2600, "kind": "final", "text": "Atena, capítulo três, Da posse agrária. Fim." },
+    { "atMs": 5200, "kind": "final", "text": "A posse agrária exige a exploração efetiva da terra." },
+    { "atMs": 7600, "kind": "final", "text": "Atena, seção um, Conceito. Fim." }
+  ]
+}
