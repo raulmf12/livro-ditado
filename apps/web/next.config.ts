@@ -12,6 +12,9 @@ const config: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ['@livro/shared'],
   turbopack: { root },
+  outputFileTracingRoot: root,
+  // A imagem Docker usa a saída "standalone" (só o necessário para rodar).
+  output: process.env.NEXT_OUTPUT === 'standalone' ? 'standalone' : undefined,
 }
 
 export default config

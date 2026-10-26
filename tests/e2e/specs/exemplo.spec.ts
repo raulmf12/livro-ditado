@@ -9,7 +9,7 @@ useFakeMic('ditado-simples')
 const created: string[] = []
 test.afterAll(() => deleteBooks(created))
 
-test('ditado simples: provisório em cinza, finais no manuscrito e no banco', async ({ page }) => {
+test('ditado simples: provisório em cinza, finais no manuscrito e no banco', { tag: '@local' }, async ({ page }) => {
   const scenario = loadScenario('ditado-simples')
   const reference = referenceTranscript(scenario)
   const stt = mockSttControl(STT_CONTROL_URL)
@@ -45,8 +45,16 @@ test('ditado simples: provisório em cinza, finais no manuscrito e no banco', as
     .order('id')
   expect(events).toEqual(reference.map((text) => ({ kind: 'final', text })))
 
-  const { data: sessions } = await db.from('dictation_sessions').select('status, stt_provider').eq('book_id', bookId)
-  expect(sessions).toEqual([{ status: 'ended', stt_provider: 'mock' }])
+  const { data: sessions } = await db
+    .from('dictation_sessions')
+    .select('status, stt_provider, latency_samples, latency_p50_ms, latency_p95_ms')
+    .eq('book_id', bookId)
+  expect(sessions).toMatchObject([{ status: 'ended', stt_provider: 'mock', latency_samples: reference.length }])
+
+  // métrica de latência fala → tela (F0.06); o alvo de 1,5 s (T.05) vale aqui com folga
+  const [session] = sessions!
+  expect(session!.latency_p50_ms).toBeGreaterThanOrEqual(0)
+  expect(session!.latency_p95_ms).toBeLessThan(1500)
 
   // o simulador recebeu a sessão desta obra, com áudio
   const req = (await stt.requests()).find((r) => r.bookId === bookId)

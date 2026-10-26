@@ -1,0 +1,16 @@
+.git
+.github
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+.env
+.env.*
+!.env.example
+supabase/.temp
+tests/e2e/test-results
+tests/e2e/playwright-report
+tests/e2e/.auth
+tests/kit/word_verifier/.venv
+**/__pycache__
+**/.pytest_cache

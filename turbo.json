@@ -1,8 +1,25 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [".env"],
+  "globalPassThroughEnv": [
+    "CI",
+    "SUPABASE_*",
+    "E2E_*",
+    "MOCK_*",
+    "STT_PROVIDER",
+    "SESSION_PORT",
+    "ALLOWED_ORIGINS",
+    "SENTRY_*",
+    "ANTHROPIC_*",
+    "EXPORT_PORT",
+    "PANDOC_PATH"
+  ],
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**", "dist/**"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "env": ["NEXT_PUBLIC_*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
     "dev": { "cache": false, "persistent": true },
     "start": { "cache": false, "persistent": true },
     "lint": {},

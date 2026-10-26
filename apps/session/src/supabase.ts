@@ -58,10 +58,16 @@ export function supabaseStoreFactory(url: string, publishableKey: string) {
         if (error) throw error
       },
 
-      async endSession(sessionId, status) {
+      async endSession(sessionId, status, latency) {
         const { error } = await db
           .from('dictation_sessions')
-          .update({ status, ended_at: new Date().toISOString() })
+          .update({
+            status,
+            ended_at: new Date().toISOString(),
+            latency_p50_ms: latency.p50Ms,
+            latency_p95_ms: latency.p95Ms,
+            latency_samples: latency.samples,
+          })
           .eq('id', sessionId)
         if (error) throw error
       },

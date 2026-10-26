@@ -16,6 +16,7 @@ export function mockSttFactory(url: string): SttFactory {
       const errorListeners: ((err: Error) => void)[] = []
       let opened = false
       let closedByUs = false
+      let failed = false
       let onDone: (() => void) | null = null
 
       const timer = setTimeout(() => {
@@ -23,7 +24,10 @@ export function mockSttFactory(url: string): SttFactory {
         reject(new Error(`simulador de STT não respondeu em ${CONNECT_TIMEOUT_MS} ms`))
       }, CONNECT_TIMEOUT_MS)
 
+      // Uma falha do provedor vira um único erro, mesmo que a conexão caia logo depois.
       const emitError = (err: Error) => {
+        if (failed) return
+        failed = true
         for (const l of errorListeners) l(err)
       }
 

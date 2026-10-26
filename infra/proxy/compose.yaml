@@ -1,0 +1,21 @@
+# Caddy compartilhado: TLS automático (Let's Encrypt) e roteamento por domínio.
+#   docker compose -p livro-proxy -f infra/proxy/compose.yaml --env-file /opt/livro/proxy.env up -d
+services:
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443', '443:443/udp']
+    env_file: ${PROXY_ENV_FILE:?defina PROXY_ENV_FILE}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [proxy]
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  proxy:
+    name: livro-proxy

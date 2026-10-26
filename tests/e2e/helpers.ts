@@ -12,6 +12,7 @@ export function readSeed(): SeedResult {
 
 export const SESSION_WS_URL = process.env.NEXT_PUBLIC_SESSION_WS_URL ?? 'ws://localhost:4001/ws'
 export const STT_CONTROL_URL = process.env.MOCK_STT_CONTROL_URL ?? 'http://localhost:4010'
+export const SENTRY_CONTROL_URL = `http://localhost:${process.env.MOCK_SENTRY_PORT ?? '4040'}`
 
 /**
  * Como o microfone falso entra no navegador:
