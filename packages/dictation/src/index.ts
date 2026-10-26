@@ -1,4 +1,5 @@
 export * from './commands.ts'
+export * from './editor-diff.ts'
 export * from './engine.ts'
 export * from './manuscript.ts'
 export * from './numbers.ts'

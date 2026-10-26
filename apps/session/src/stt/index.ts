@@ -1,3 +1,4 @@
+import { STT_USD_PER_MINUTE } from '@livro/shared'
 import { assemblyai, deepgram, elevenlabs, mock } from './providers.ts'
 import type { SttProvider } from './types.ts'
 
@@ -10,21 +11,21 @@ export type { SttFactory, SttProvider, SttStream, SttStreamOptions, SttTranscrip
  */
 export function sttFromEnv(env: NodeJS.ProcessEnv): SttProvider {
   const name = env.STT_PROVIDER ?? 'mock'
-  const price = (fallback: number) => Number(env.STT_USD_PER_MINUTE ?? fallback)
+  const price = () => Number(env.STT_USD_PER_MINUTE ?? STT_USD_PER_MINUTE[name] ?? 0)
   switch (name) {
     case 'mock':
-      return { name, create: mock(required(env, 'MOCK_STT_URL')), usdPerMinute: price(0) }
+      return { name, create: mock(required(env, 'MOCK_STT_URL')), usdPerMinute: price() }
     case 'deepgram':
       return {
         name,
         create: deepgram({ apiKey: required(env, 'DEEPGRAM_API_KEY'), baseUrl: env.DEEPGRAM_URL, model: env.DEEPGRAM_MODEL }),
-        usdPerMinute: price(0.0077),
+        usdPerMinute: price(),
       }
     case 'assemblyai':
       return {
         name,
         create: assemblyai({ apiKey: required(env, 'ASSEMBLYAI_API_KEY'), baseUrl: env.ASSEMBLYAI_URL, model: env.ASSEMBLYAI_MODEL }),
-        usdPerMinute: price(0.0025),
+        usdPerMinute: price(),
       }
     case 'elevenlabs':
       return {
@@ -34,7 +35,7 @@ export function sttFromEnv(env: NodeJS.ProcessEnv): SttProvider {
           baseUrl: env.ELEVENLABS_URL,
           zeroRetention: env.ELEVENLABS_ZERO_RETENTION !== 'false',
         }),
-        usdPerMinute: price(0.0067),
+        usdPerMinute: price(),
       }
     default:
       throw new Error(`STT_PROVIDER desconhecido: ${name}`)

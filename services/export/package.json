@@ -7,13 +7,21 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "start": "tsx --env-file-if-exists=../../.env src/index.ts",
     "lint": "eslint src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@livro/eslint-config": "workspace:*",
+    "@livro/test-kit": "workspace:*",
     "@types/node": "26.6.5",
     "eslint": "10.13.0",
     "tsx": "4.23.15",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "@livro/dictation": "workspace:*",
+    "@supabase/supabase-js": "2.118.0",
+    "jszip": "3.10.2"
   }
 }

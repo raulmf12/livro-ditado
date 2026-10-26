@@ -122,6 +122,24 @@ def paragraphs(document) -> list[Paragraph]:
     return out
 
 
+def sections(document) -> list[dict]:
+    """Seções na ordem do documento: tamanho da página, margens e recomeço das notas."""
+    out = []
+    for sect in document.element.body.iter(qn("w:sectPr")):
+        restart = sect.find(f"{qn('w:footnotePr')}/{qn('w:numRestart')}")
+        size = sect.find(qn("w:pgSz"))
+        margin = sect.find(qn("w:pgMar"))
+        twips_cm = lambda v: None if v is None else round(int(v) / 567, 2)
+        out.append({
+            "footnote_restart": None if restart is None else restart.get(qn("w:val")),
+            "page_cm": None if size is None else [twips_cm(size.get(qn("w:w"))), twips_cm(size.get(qn("w:h")))],
+            "margins_cm": None if margin is None else {
+                k: twips_cm(margin.get(qn(f"w:{k}"))) for k in ("top", "right", "bottom", "left")
+            },
+        })
+    return out
+
+
 def inspect(path: str) -> dict:
     document = Document(path)
     paras = paragraphs(document)
@@ -129,6 +147,7 @@ def inspect(path: str) -> dict:
         "paragraphs": [asdict(p) for p in paras],
         "footnotes": footnotes(document),
         "comments": comments(document),
+        "sections": sections(document),
         "ai_marked_count": sum(len(p.ai_marked_text) for p in paras),
     }
 

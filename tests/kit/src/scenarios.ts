@@ -55,3 +55,12 @@ export function fakeMicArgs(scenario: SttScenario): string[] {
     `--use-file-for-fake-audio-capture=${audioPath(scenario)}`,
   ]
 }
+
+/**
+ * O que deve virar texto no manuscrito: os finais que não são comandos
+ * (guarda de fidelidade, F1.10 e E2E-11). Comandos começam com a palavra de ativação.
+ */
+export function dictatedFinals(scenario: SttScenario, wakeWord = 'Atena'): string[] {
+  const wake = new RegExp(`^${wakeWord}\\b`, 'i')
+  return referenceTranscript(scenario).filter((t) => !wake.test(t.trim()))
+}

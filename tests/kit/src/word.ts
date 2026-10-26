@@ -20,6 +20,7 @@ export interface DocxReport {
   paragraphs: DocxParagraph[]
   footnotes: { id: number; text: string }[]
   comments: { id: number; author: string; text: string }[]
+  sections: { footnote_restart: string | null; page_cm: [number, number] | null; margins_cm: Record<'top' | 'right' | 'bottom' | 'left', number> | null }[]
   ai_marked_count: number
 }
 

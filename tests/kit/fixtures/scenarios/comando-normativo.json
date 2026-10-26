@@ -1,9 +1,54 @@
 {
-  "description": "Frases do domínio que não podem disparar comando (usado a partir de F1.15).",
+  "description": "F1.15 e E2E-09: frases do domínio que não podem disparar comando.",
   "audio": "comando-normativo.wav",
-  "speech": "O comando normativo do artigo cento e oitenta e seis define a função social. A coruja de Atena simboliza a sabedoria.",
+  "segments": [
+    {
+      "speech": "O comando normativo do artigo cento e oitenta e seis define a função social.",
+      "text": "O comando normativo do artigo 186 define a função social."
+    },
+    {
+      "speech": "A coruja de Atena simboliza a sabedoria."
+    },
+    {
+      "speech": "O imóvel rural deve ser explorado de forma racional e adequada."
+    }
+  ],
   "events": [
-    { "atMs": 3800, "kind": "final", "text": "O comando normativo do artigo 186 define a função social." },
-    { "atMs": 6400, "kind": "final", "text": "A coruja de Atena simboliza a sabedoria." }
+    {
+      "atMs": 2646,
+      "startMs": 0,
+      "kind": "interim",
+      "text": "O comando normativo do artigo"
+    },
+    {
+      "atMs": 5292,
+      "startMs": 0,
+      "kind": "final",
+      "text": "O comando normativo do artigo 186 define a função social."
+    },
+    {
+      "atMs": 7150,
+      "startMs": 5692,
+      "kind": "interim",
+      "text": "A coruja de Atena"
+    },
+    {
+      "atMs": 8607,
+      "startMs": 5692,
+      "kind": "final",
+      "text": "A coruja de Atena simboliza a sabedoria."
+    },
+    {
+      "atMs": 11195,
+      "startMs": 9007,
+      "kind": "interim",
+      "text": "O imóvel rural deve ser explorado"
+    },
+    {
+      "atMs": 13382,
+      "startMs": 9007,
+      "kind": "final",
+      "text": "O imóvel rural deve ser explorado de forma racional e adequada."
+    }
   ]
 }

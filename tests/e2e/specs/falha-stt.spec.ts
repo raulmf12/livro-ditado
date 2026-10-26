@@ -22,9 +22,10 @@ test('queda do provedor de transcrição gera aviso amigável', { tag: '@local' 
   await expect(page.getByTestId('status')).toHaveText('parado')
   await expect(page.getByRole('button', { name: 'Gravar' })).toBeEnabled()
 
-  const { data } = await adminClient().from('dictation_sessions').select('id, status').eq('book_id', bookId)
-  expect(data).toMatchObject([{ status: 'interrupted' }])
-  const sessionId = data![0]!.id as string
+  // a sessão fecha no banco depois de guardar o áudio que restou
+  const sessionOf = async () => (await adminClient().from('dictation_sessions').select('id, status').eq('book_id', bookId)).data ?? []
+  await expect.poll(sessionOf).toMatchObject([{ status: 'interrupted' }])
+  const sessionId = (await sessionOf())[0]!.id as string
 
   // servidor: exceção com o ID da sessão; navegador: aviso mostrado ao autor, com o mesmo ID
   const sentry = mockSentryControl(SENTRY_CONTROL_URL)

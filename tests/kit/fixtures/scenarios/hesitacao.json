@@ -1,0 +1,24 @@
+{
+  "description": "F1.09: frase com hesitação isolada.",
+  "audio": "hesitacao.wav",
+  "segments": [
+    {
+      "speech": "A posse, hã, exige exploração efetiva.",
+      "text": "A posse, hã, exige exploração efetiva."
+    }
+  ],
+  "events": [
+    {
+      "atMs": 1609,
+      "startMs": 0,
+      "kind": "interim",
+      "text": "A posse, hã,"
+    },
+    {
+      "atMs": 3217,
+      "startMs": 0,
+      "kind": "final",
+      "text": "A posse, hã, exige exploração efetiva."
+    }
+  ]
+}

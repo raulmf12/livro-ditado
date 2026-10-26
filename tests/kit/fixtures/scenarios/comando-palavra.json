@@ -1,0 +1,38 @@
+{
+  "description": "F1.11: comando dito com a palavra de ativação, seguido de texto.",
+  "audio": "comando-palavra.wav",
+  "segments": [
+    {
+      "speech": "Atena, capítulo dois, Da propriedade. Fim."
+    },
+    {
+      "speech": "A propriedade é direito real."
+    }
+  ],
+  "events": [
+    {
+      "atMs": 1829,
+      "startMs": 0,
+      "kind": "interim",
+      "text": "Atena, capítulo dois,"
+    },
+    {
+      "atMs": 3658,
+      "startMs": 0,
+      "kind": "final",
+      "text": "Atena, capítulo dois, Da propriedade. Fim."
+    },
+    {
+      "atMs": 5045,
+      "startMs": 4058,
+      "kind": "interim",
+      "text": "A propriedade é"
+    },
+    {
+      "atMs": 6032,
+      "startMs": 4058,
+      "kind": "final",
+      "text": "A propriedade é direito real."
+    }
+  ]
+}
