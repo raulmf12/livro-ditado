@@ -70,6 +70,34 @@ Aplique primeiro em staging, rode o E2E e só depois aplique em produção.
      ```
 - **Teste automático:** o job *Backup e restauração* do workflow *Infra* faz backup, zera o banco, restaura e confere login, obra e áudio a cada PR e toda segunda-feira.
 
+## Provedor de transcrição (F1.03, F1.04)
+
+O servidor de sessão fala com Deepgram, AssemblyAI ou ElevenLabs pela mesma interface. Para trocar de provedor, mude `STT_PROVIDER` e a chave correspondente no `app.env` e faça um novo deploy. Os parâmetros de cada um estão comentados em `infra/env/app.env.example`, e o sigilo de cada um em [sigilo.md](sigilo.md).
+
+**Benchmark (portão da fase 1).** Ele escolhe o provedor com o áudio real do autor:
+
+1. Grave uns 30 minutos do autor ditando como ele dita o livro. Divida em arquivos de 2 a 5 minutos e converta para WAV 16 kHz mono: `ffmpeg -i entrada.m4a -ac 1 -ar 16000 -sample_fmt s16 trecho-01.wav`.
+2. Para cada `trecho-NN.wav`, escreva `trecho-NN.txt` com a transcrição revisada (o que o autor falou, com os números como devem sair no livro).
+3. Opcionalmente, crie `termos.txt` com um termo jurídico por linha (usucapião, enfiteuse, REsp…).
+4. Com as três chaves no `.env`, rode `pnpm benchmark <pasta> --out benchmark-stt.md`. O relatório traz, para cada provedor:
+   - erro geral (WER);
+   - acerto nos termos jurídicos;
+   - latência;
+   - reconexões;
+   - custo estimado;
+   - a recomendação final.
+5. Em vez de rodar localmente, também dá para enviar a pasta ao bucket privado `benchmark`, no caminho `amostras/`, e rodar o workflow **Noturno** à mão com "benchmark" marcado.
+
+O áudio do autor não vai para o repositório: fica só na sua máquina ou no bucket privado.
+
+**Teste noturno (E2E-13).** Depois de escolhido o provedor:
+
+1. Envie ao bucket `benchmark`, em `noturno/`, um áudio longo do autor (perto de 2 h) com a transcrição revisada (mesmo formato acima).
+2. No GitHub, crie os segredos `NIGHTLY_STT_PROVIDER` (por exemplo, `deepgram`) e a chave do provedor (`DEEPGRAM_API_KEY` etc.).
+3. Opcionalmente, crie a variável `NIGHTLY_MAX_WER` (padrão 0.08, o limite aceito no benchmark).
+
+Toda noite o workflow transcreve o áudio no ritmo real e falha se houver queda, se a latência p95 passar de 1,5 s ou se o erro passar do limite. O mesmo workflow roda a sessão longa de 2 h contra o simulador, para pegar vazamento de memória (T.05).
+
 ## Rotação de chaves (T.01)
 
 Nenhuma chave fica no código do navegador; o E2E `chaves.spec.ts` confere isso a cada PR. Para trocar uma chave:
@@ -80,7 +108,8 @@ Nenhuma chave fica no código do navegador; o E2E `chaves.spec.ts` confere isso 
 | Supabase publicável | Mesmo lugar | `app.env` (exige novo deploy: o valor entra no build) e segredos do GitHub |
 | Senha do Postgres | Painel → Database → Reset password | `backup.env` |
 | Chave SSH de deploy | `ssh-keygen` | `authorized_keys` do usuário `deploy` e segredo `DEPLOY_SSH_KEY` |
-| Provedor de STT e Claude (a partir das fases 1 e 2) | Painel de cada provedor | `app.env` do servidor de sessão |
+| Provedor de STT (`DEEPGRAM_API_KEY`, `ASSEMBLYAI_API_KEY`, `ELEVENLABS_API_KEY`) | Painel de cada provedor | `app.env`; e, para o teste noturno, o segredo de mesmo nome no GitHub |
+| Claude (fase 2) | Console da Anthropic | `app.env` |
 
 Depois de trocar, faça um deploy, confira o E2E e só então revogue a chave antiga.
 

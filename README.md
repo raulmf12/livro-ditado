@@ -6,10 +6,11 @@ Sistema de ditado por voz do livro jurídico. O plano completo, com fases, taref
 
 | Pasta | O que é |
 | --- | --- |
-| `apps/web` | Next.js 16: login, obras e tela de ditado |
-| `apps/session` | Servidor de sessão (WebSocket autenticado) que repassa o áudio ao provedor de transcrição |
-| `services/export` | Serviço de exportação Word com Pandoc (esqueleto; conversão em F1.22–F1.25) |
-| `packages/shared` | Tipos e esquemas (zod) do manuscrito e do protocolo do WebSocket |
+| `apps/web` | Next.js 16: login, obras, editor do manuscrito, ditado, sumário, prévia, glossário, grafia, exportações, histórico, custos |
+| `apps/session` | Servidor de sessão (WebSocket autenticado): áudio com confirmação e retomada, provedores de transcrição, motor de ditado, áudio por trecho; benchmark de provedores |
+| `services/export` | Exportação Word: manuscrito → documento do Pandoc → .docx com o modelo ABNT (`template/`) |
+| `packages/dictation` | Motor de ditado: comandos falados, regras de grafia e hesitações, manuscrito com ordem fracionária, desfazer/refazer |
+| `packages/shared` | Tipos e esquemas (zod) do manuscrito, do protocolo do WebSocket e dos custos |
 | `packages/eslint-config` | Regras de lint comuns |
 | `tests/kit` | Base de testes: simulador de STT, simulador do Claude, cenários com áudio, verificador de Word, banco semente |
 | `tests/e2e` | Jornadas E2E (Playwright) |
@@ -32,7 +33,9 @@ pnpm seed                         # autores de teste e obras semente
 pnpm dev                          # web :3000, sessão :4001, simuladores :4010/:4020/:4040, exportação :4030
 ```
 
-Abra http://localhost:3000 e entre com `autor-a@example.com` e a senha `E2E_PASSWORD` do `.env`. Em desenvolvimento a transcrição vem do simulador, que devolve o texto do cenário `ditado-simples` para qualquer áudio.
+Abra http://localhost:3000 e entre com `autor-a@example.com` e a senha `E2E_PASSWORD` do `.env`. Em desenvolvimento a transcrição vem do simulador, que devolve o texto de um cenário gravado para qualquer áudio: `pnpm cenario` lista os cenários e `pnpm cenario capitulo-completo` escolhe um. Para ditar com a sua voz de verdade, ponha `STT_PROVIDER=deepgram` e `DEEPGRAM_API_KEY` no `.env` (ou AssemblyAI/ElevenLabs).
+
+O manual de uso para o autor está em [docs/manual-do-autor.md](docs/manual-do-autor.md).
 
 Não há cadastro público (desligado também no Supabase). Para criar a conta do autor, use `pnpm user:create email@dominio`; para um admin, acrescente `--admin`.
 
@@ -55,19 +58,20 @@ Para refazer os áudios sintéticos depois de mudar a fala de um cenário, rode 
 
 Toda tabela tem RLS: cada autor só enxerga as próprias obras e tudo o que pende delas. O servidor de sessão acessa o banco com o token do usuário, nunca com a chave secreta. A chave secreta só é usada pelos scripts de teste e de administração.
 
-## Estado da fase 0
+## Estado do plano
 
-Tudo o que não depende de servidor próprio está pronto e testado no CI. Falta só demonstrar em staging de verdade, que depende de VPS e domínios.
+Fase 0 validada pelo cliente em 26/10/2026. O que depende de VPS, domínios e conta no Sentry está pronto e testado no CI, mas ainda não foi publicado.
 
-| ID | Status | Como foi verificado |
+### Fase 1: ditado no computador e exportação Word
+
+| Grupo | Tarefas | Como foi verificado |
 | --- | --- | --- |
-| F0.01 Monorepo | Pronto | `pnpm dev` sobe tudo; smoke E2E |
-| F0.02 Infra e ambientes | Pronto, aguardando VPS | Imagens, Compose e Caddy sobem no CI como na VPS, e o E2E passa contra essa pilha; scripts de provisionamento e deploy |
-| F0.03 CI/CD | Pronto, deploy aguardando VPS | CI completo em todo PR; deploy de staging após CI verde e de produção por tag (inativo até existirem os segredos da VPS) |
-| F0.04 Esquema e RLS | Pronto | Migrações sobem, revertem e sobem; 12 testes de integração de RLS |
-| F0.05 Autenticação | Pronto | Login, logout, proxy e WebSocket com token; papéis `autor`/`admin`; cadastro público desligado |
-| F0.06 Observabilidade | Pronto, aguardando DSN | Erro com ID da sessão chega ao Sentry (simulado no E2E); latência p50/p95 por sessão; aviso amigável |
-| F0.07 Base de testes | Pronto | Exemplo E2E com microfone falso, simuladores de STT, Claude e Sentry, verificador de Word e banco semente |
-| F0.08 Backup | Pronto, aguardando VPS | No CI: backup, banco zerado, restauração; login, obra e áudio voltam |
-| T.01 Chaves só no servidor | Pronto | E2E varre o JS servido; rotação no runbook |
-| E2E-12 Segurança | Pronto | No CI local e contra a pilha com Caddy |
+| Captura e transcrição | F1.01–F1.03, F1.05–F1.10 | Unitários do motor e do servidor; os três provedores contra o simulador; E2E de reconexão, áudio por trecho, glossário, grafia com desfazer, hesitações e fidelidade |
+| Benchmark (portão) | F1.04 | Ferramenta pronta e testada contra o simulador; **falta rodar com 30 min de áudio do autor e as chaves dos provedores** |
+| Comandos de voz | F1.11–F1.15 | Parser com 44 casos; E2E de palavra e tecla (mesmo resultado), apagar/desfazer, falso positivo |
+| Manuscrito e editor | F1.16–F1.21 | 1.000 inserções aleatórias (memória e banco); E2E de cursor de ditado, prévia contra imagem de referência, reordenar capítulo até o Word, fechar a aba, duas abas |
+| Exportação Word | F1.22–F1.25 | Verificador de Word estilo a estilo; notas por capítulo/livro; 300 páginas em cerca de 3 s; Word automático ao fim da sessão |
+| Transversais | T.02–T.07 | Limites de taxa; sigilo ([docs/sigilo.md](docs/sigilo.md)); painel de custos; sessão longa de 2 h; jornada só com teclado; [manual do autor](docs/manual-do-autor.md) |
+| Jornadas | E2E-01, E2E-09, E2E-11 | Passam a cada PR; E2E-13 (noturno, provedor real) fica ativo quando houver o áudio e a chave |
+
+Depende do cliente: rodar o benchmark (F1.04), aprovar a página de amostra do Word e da prévia (F1.18, F1.22) e fazer o piloto com um capítulo real (T.08). Roteiro em [docs/validacao-fase-1.md](docs/validacao-fase-1.md).

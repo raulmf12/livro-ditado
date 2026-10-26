@@ -1,0 +1,47 @@
+{
+  "description": "F1.13: ditar, apagar a última frase por voz e desfazer.",
+  "audio": "edicao-voz.wav",
+  "segments": [
+    {
+      "speech": "A posse é um fato. A propriedade é um direito."
+    },
+    {
+      "speech": "Atena, apaga a última frase."
+    },
+    {
+      "speech": "Atena, desfaz."
+    }
+  ],
+  "events": [
+    {
+      "atMs": 1626,
+      "startMs": 0,
+      "kind": "interim",
+      "text": "A posse é um fato."
+    },
+    {
+      "atMs": 3252,
+      "startMs": 0,
+      "kind": "final",
+      "text": "A posse é um fato. A propriedade é um direito."
+    },
+    {
+      "atMs": 4819,
+      "startMs": 3652,
+      "kind": "interim",
+      "text": "Atena, apaga a"
+    },
+    {
+      "atMs": 5986,
+      "startMs": 3652,
+      "kind": "final",
+      "text": "Atena, apaga a última frase."
+    },
+    {
+      "atMs": 7965,
+      "startMs": 6386,
+      "kind": "final",
+      "text": "Atena, desfaz."
+    }
+  ]
+}

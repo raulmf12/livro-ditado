@@ -1,0 +1,24 @@
+{
+  "description": "F1.08: o STT escreve \"rex\"; a regra aprovada troca por \"REsp\".",
+  "audio": "grafia-rex.wav",
+  "segments": [
+    {
+      "speech": "No rex mil duzentos e trinta e quatro, o tribunal decidiu.",
+      "text": "No rex 1.234, o tribunal decidiu."
+    }
+  ],
+  "events": [
+    {
+      "atMs": 2060,
+      "startMs": 0,
+      "kind": "interim",
+      "text": "No rex 1.234,"
+    },
+    {
+      "atMs": 4119,
+      "startMs": 0,
+      "kind": "final",
+      "text": "No rex 1.234, o tribunal decidiu."
+    }
+  ]
+}

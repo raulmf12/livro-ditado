@@ -1,0 +1,39 @@
+{
+  "description": "F1.11: o mesmo comando dito com a tecla de comando segurada (sem a palavra), seguido de texto.",
+  "audio": "comando-tecla.wav",
+  "segments": [
+    {
+      "speech": "Capítulo dois, Da propriedade.",
+      "text": "capítulo dois, Da propriedade"
+    },
+    {
+      "speech": "A propriedade é direito real."
+    }
+  ],
+  "events": [
+    {
+      "atMs": 1179,
+      "startMs": 0,
+      "kind": "interim",
+      "text": "capítulo dois,"
+    },
+    {
+      "atMs": 2358,
+      "startMs": 0,
+      "kind": "final",
+      "text": "capítulo dois, Da propriedade"
+    },
+    {
+      "atMs": 3745,
+      "startMs": 2758,
+      "kind": "interim",
+      "text": "A propriedade é"
+    },
+    {
+      "atMs": 4732,
+      "startMs": 2758,
+      "kind": "final",
+      "text": "A propriedade é direito real."
+    }
+  ]
+}

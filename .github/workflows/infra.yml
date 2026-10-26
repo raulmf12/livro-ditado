@@ -51,6 +51,7 @@ jobs:
           SENTRY_DSN=http://public@mock-stt:4040/1
           SENTRY_ENVIRONMENT=staging
           EXPORT_PORT=4030
+          EXPORT_URL=http://export:4030
           ENV
           cat > /tmp/livro/proxy.env <<ENV
           STAGING_DOMAIN=staging.localhost
@@ -83,7 +84,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @livro/test-kit setup:py
       - run: pnpm --filter @livro/e2e exec playwright install --with-deps chromium
       - name: E2E contra o staging local
         env:

@@ -1,8 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { audioPath, fakeMicArgs, loadScenario } from '@livro/test-kit/scenarios'
 import type { SeedResult } from '@livro/test-kit/seed'
 import { adminClient } from '@livro/test-kit'
+import { verifyDocx, type DocxReport } from '@livro/test-kit/word'
 
 export const SEED_FILE = new URL('./.auth/seed.json', import.meta.url)
 
@@ -13,6 +16,7 @@ export function readSeed(): SeedResult {
 export const SESSION_WS_URL = process.env.NEXT_PUBLIC_SESSION_WS_URL ?? 'ws://localhost:4001/ws'
 export const STT_CONTROL_URL = process.env.MOCK_STT_CONTROL_URL ?? 'http://localhost:4010'
 export const SENTRY_CONTROL_URL = `http://localhost:${process.env.MOCK_SENTRY_PORT ?? '4040'}`
+export const NET_CUTTER_URL = `http://localhost:${process.env.NET_CUTTER_CONTROL_PORT ?? '4012'}`
 
 /**
  * Como o microfone falso entra no navegador:
@@ -72,4 +76,63 @@ export async function createBookViaUi(page: Page, title: string): Promise<string
 
 export async function deleteBooks(ids: string[]) {
   if (ids.length) await adminClient().from('books').delete().in('id', ids)
+}
+
+/** Texto do manuscrito no editor, bloco a bloco (sem as chamadas de nota). */
+export async function editorBlocks(page: Page): Promise<{ type: string; text: string }[]> {
+  return page.getByTestId('manuscrito').evaluate((root) =>
+    [...root.children].map((el) => ({
+      type: (el as HTMLElement).dataset.type ?? el.tagName.toLowerCase(),
+      text: [...el.childNodes]
+        .filter((n) => !(n instanceof HTMLElement && (n.dataset.type === 'footnote' || n.classList.contains('dictation-cursor'))))
+        .map((n) => n.textContent ?? '')
+        .join(''),
+    })),
+  )
+}
+
+/** Espera o ditado começar de fato (microfone aberto e sessão pronta). */
+export async function startRecording(page: Page) {
+  await page.getByRole('button', { name: 'Gravar' }).click()
+  await expect(page.getByTestId('status')).toHaveText('gravando')
+}
+
+export async function stopRecording(page: Page) {
+  await page.getByRole('button', { name: 'Pausar' }).click()
+  await expect(page.getByTestId('status')).toHaveText('parado', { timeout: 20_000 })
+}
+
+/** Aplica operações no manuscrito pela API (para preparar uma obra com conteúdo). */
+export async function seedBlocks(bookId: string, blocks: { id: string; parent_id: string | null; type: string; position: string; content: string; attrs?: Record<string, unknown> }[]) {
+  const { error } = await adminClient().from('blocks').insert(blocks.map((b) => ({ ...b, book_id: bookId, attrs: b.attrs ?? {} })))
+  if (error) throw new Error(`falha ao preparar blocos: ${error.message}`)
+}
+
+/** Exporta pela tela de exportações, baixa o .docx e devolve o que o verificador leu nele. */
+export async function exportWord(page: Page, bookId: string, opts: { chapter?: string; final?: boolean } = {}): Promise<DocxReport> {
+  await page.goto(`/obra/${bookId}/exportacoes`)
+  if (opts.chapter) await page.getByLabel('Exportar').selectOption({ label: `Capítulo: ${opts.chapter}` })
+  if (opts.final) await page.getByLabel(/Versão final/).check()
+  const downloading = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Exportar Word' }).click()
+  const download = await downloading
+  const file = join(mkdtempSync(join(tmpdir(), 'e2e-word-')), 'livro.docx')
+  await download.saveAs(file)
+  return verifyDocx(file)
+}
+
+/** Parágrafos com texto do Word (as quebras de seção são parágrafos vazios). */
+export function wordParagraphs(r: DocxReport) {
+  return r.paragraphs.filter((p) => p.text.trim())
+}
+
+/** Abre uma obra nova com o cenário de áudio escolhido no simulador. */
+export async function newBookWithScenario(page: Page, scenario: string, created: string[], who: 'a' | 'b' | null = 'a') {
+  if (who) await login(page, who)
+  else await page.goto('/obra')
+  const bookId = await createBookViaUi(page, `${scenario} ${Date.now()}`)
+  created.push(bookId)
+  const { mockSttControl } = await import('@livro/test-kit')
+  await mockSttControl(STT_CONTROL_URL).useScenario(scenario, bookId)
+  return bookId
 }

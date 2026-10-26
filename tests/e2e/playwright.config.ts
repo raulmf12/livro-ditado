@@ -17,6 +17,9 @@ const serverEnv: Record<string, string> = {
   NEXT_PUBLIC_SENTRY_DSN: `http://public@localhost:${sentryPort}/1`,
   SENTRY_ENVIRONMENT: 'e2e',
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: 'e2e',
+  // o navegador fala com o servidor de sessão pelo cortador de rede (F1.02, E2E-09)
+  NEXT_PUBLIC_SESSION_WS_URL: 'ws://localhost:4002/ws',
+  EXPORT_URL: 'http://localhost:4030',
 }
 
 export default defineConfig({
@@ -27,8 +30,11 @@ export default defineConfig({
   retries: CI ? 1 : 0,
   workers: CI ? 2 : undefined,
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html', { open: 'never' }]],
-  timeout: 45_000,
+  timeout: 90_000,
   expect: { timeout: 10_000 },
+  // a imagem de referência da prévia (F1.18) é gravada na primeira execução de cada sistema;
+  // depois disso, toda execução compara com ela
+  updateSnapshots: 'missing',
   use: {
     baseURL: BASE_URL,
     locale: 'pt-BR',
@@ -54,6 +60,13 @@ export default defineConfig({
           name: 'sessão',
           command: 'pnpm --filter @livro/session start',
           url: 'http://localhost:4001/health',
+          env: serverEnv,
+          reuseExistingServer: !CI,
+        },
+        {
+          name: 'exportação',
+          command: 'pnpm --filter @livro/export start',
+          url: 'http://localhost:4030/health',
           env: serverEnv,
           reuseExistingServer: !CI,
         },

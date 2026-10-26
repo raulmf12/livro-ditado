@@ -39,14 +39,14 @@ A fase 0 entrega o esqueleto que tudo usa: repositório, deploy, banco com RLS, 
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Depende de | Status |
 | --- | --- | --- | --- | --- | --- |
-| F0.01 | Monorepo (pnpm + Turborepo): `apps/web` (Next.js), `apps/session` (Node WebSocket), `services/export` (Pandoc), `packages/shared` (tipos e esquemas) | Um comando sobe tudo localmente; tipos compartilhados compilam | Smoke: a tela de login abre | — | Em validação |
-| F0.02 | Infra e ambientes: VPS com Docker Compose, Caddy com TLS, domínios de staging e produção, segredos fora do repositório | Deploy de staging reproduzível por script | Smoke roda contra a URL de staging | F0.01 | Em validação (falta VPS) |
-| F0.03 | CI/CD no GitHub Actions: lint, typecheck, unitário, integração, E2E com simuladores; staging no merge, produção por tag | PR bloqueado se qualquer etapa falhar | O pipeline executa a suíte E2E completa | F0.01, F0.07 | Em validação (deploy falta VPS) |
-| F0.04 | Esquema do banco (migrações Supabase): `books`, `blocks` (árvore com ordem fracionária, origem autor ou IA, status), `dictation_sessions`, `audio_segments`, `transcript_events`, `commands`, `references` (CSL-JSON), `glossary_terms`, `spelling_rules`, `search_logs`; políticas RLS | Migração sobe do zero e reverte; RLS bloqueia acesso cruzado | Usuário B logado não enxerga a obra do usuário A | F0.01 | Em validação |
-| F0.05 | Autenticação: Supabase Auth com e-mail e senha; papéis autor e admin; token validado no WebSocket | Rotas e WebSocket recusam quem não tem sessão | Login, logout; abrir `/obra` sem sessão redireciona ao login | F0.04 | Em validação |
-| F0.06 | Observabilidade: Sentry no front e no servidor, logs estruturados, métrica de latência fala → texto na tela | Erro forçado aparece no Sentry com o ID da sessão | Falha simulada do STT mostra aviso amigável na tela | F0.02 | Em validação (falta DSN do Sentry) |
-| F0.07 | Base de testes: Playwright, microfone falso, simulador de STT, simulador do Claude, verificador de Word, banco semente | Um cenário de exemplo usa todas as peças | O cenário de exemplo passa no CI | F0.01, F0.04 | Em validação |
-| F0.08 | Backup: Postgres diário, versionamento do Storage de áudio, restauração testada | Restauração em staging recupera obra e áudio | Após restaurar, abrir a obra e tocar o áudio de um trecho | F0.02, F0.04 | Em validação (falta VPS) |
+| F0.01 | Monorepo (pnpm + Turborepo): `apps/web` (Next.js), `apps/session` (Node WebSocket), `services/export` (Pandoc), `packages/shared` (tipos e esquemas) | Um comando sobe tudo localmente; tipos compartilhados compilam | Smoke: a tela de login abre | — | Concluído |
+| F0.02 | Infra e ambientes: VPS com Docker Compose, Caddy com TLS, domínios de staging e produção, segredos fora do repositório | Deploy de staging reproduzível por script | Smoke roda contra a URL de staging | F0.01 | Concluído no CI (publicação aguarda VPS) |
+| F0.03 | CI/CD no GitHub Actions: lint, typecheck, unitário, integração, E2E com simuladores; staging no merge, produção por tag | PR bloqueado se qualquer etapa falhar | O pipeline executa a suíte E2E completa | F0.01, F0.07 | Concluído (deploy aguarda VPS) |
+| F0.04 | Esquema do banco (migrações Supabase): `books`, `blocks` (árvore com ordem fracionária, origem autor ou IA, status), `dictation_sessions`, `audio_segments`, `transcript_events`, `commands`, `references` (CSL-JSON), `glossary_terms`, `spelling_rules`, `search_logs`; políticas RLS | Migração sobe do zero e reverte; RLS bloqueia acesso cruzado | Usuário B logado não enxerga a obra do usuário A | F0.01 | Concluído |
+| F0.05 | Autenticação: Supabase Auth com e-mail e senha; papéis autor e admin; token validado no WebSocket | Rotas e WebSocket recusam quem não tem sessão | Login, logout; abrir `/obra` sem sessão redireciona ao login | F0.04 | Concluído |
+| F0.06 | Observabilidade: Sentry no front e no servidor, logs estruturados, métrica de latência fala → texto na tela | Erro forçado aparece no Sentry com o ID da sessão | Falha simulada do STT mostra aviso amigável na tela | F0.02 | Concluído (Sentry real aguarda DSN) |
+| F0.07 | Base de testes: Playwright, microfone falso, simulador de STT, simulador do Claude, verificador de Word, banco semente | Um cenário de exemplo usa todas as peças | O cenário de exemplo passa no CI | F0.01, F0.04 | Concluído |
+| F0.08 | Backup: Postgres diário, versionamento do Storage de áudio, restauração testada | Restauração em staging recupera obra e áudio | Após restaurar, abrir a obra e tocar o áudio de um trecho | F0.02, F0.04 | Concluído no CI (produção aguarda VPS) |
 
 ## Fase 1 — Ditado no computador e exportação Word
 
@@ -56,46 +56,46 @@ Ao fim da fase 1, o autor dita um capítulo no computador, com estrutura e notas
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Depende de | Status |
 | --- | --- | --- | --- | --- | --- |
-| F1.01 | Captura de microfone: getUserMedia, AudioWorklet convertendo para PCM 16 kHz, medidor de nível, escolha do microfone | Áudio chega ao servidor em pedaços de 100 ms | Com microfone falso, o medidor reage e o botão alterna Gravar/Pausar | F0.05 | A fazer |
-| F1.02 | Servidor de sessão: WebSocket autenticado, repasse ao provedor, buffer de reenvio, reconexão automática | Queda de 5 s não perde áudio | Rede derrubada no meio do ditado: aviso "reconectando" e texto completo após voltar | F1.01 | A fazer |
-| F1.03 | Adaptador de STT: interface única com Deepgram, AssemblyAI e ElevenLabs, escolha por configuração | Trocar de provedor não muda código fora do adaptador | Mesmo cenário passa com o simulador imitando os três formatos | F1.02 | A fazer |
-| F1.04 | Benchmark (portão): script roda os três provedores com 30 min de áudio do autor e mede erros gerais e em termos jurídicos | Relatório entregue e provedor escolhido | Vira o cenário noturno com o provedor escolhido | F1.03 | A fazer |
-| F1.05 | Áudio bruto no Storage, por segmento, ligado aos blocos de texto | Cada parágrafo aponta para o áudio de origem | "Ouvir trecho" num parágrafo toca o áudio certo | F1.02, F0.04 | A fazer |
-| F1.06 | Provisório e final: texto provisório em cinza, só o final é gravado | Recarregar mantém só o texto final | Simulador envia provisórios e finais; após recarregar, só os finais estão no manuscrito | F1.02 | A fazer |
-| F1.07 | Glossário por livro e por capítulo, enviado ao provedor ao abrir a sessão | Termos do capítulo ativo vão na requisição | Cadastrar "usucapião" e iniciar sessão: o simulador registra o termo recebido | F1.03 | A fazer |
-| F1.08 | Dicionário de grafia: regras aprovadas pelo autor, aplicadas no texto final, com log e desfazer | Toda troca registrada com antes e depois | Ditar "rex": aparece "REsp"; o log mostra a troca; desfazer restaura | F1.06 | A fazer |
-| F1.09 | Remoção opcional de hesitações ("é…", "hã" isolados) | Desligada por padrão; nada fora da lista é removido | Mesmo áudio com a opção ligada e desligada gera os dois textos esperados | F1.06 | A fazer |
-| F1.10 | Guarda de fidelidade: texto gravado = finais do STT + regras aprovadas | Diff zero em todos os cenários | Compara o manuscrito com a transcrição de referência e falha em qualquer diferença | F1.08 | A fazer |
+| F1.01 | Captura de microfone: getUserMedia, AudioWorklet convertendo para PCM 16 kHz, medidor de nível, escolha do microfone | Áudio chega ao servidor em pedaços de 100 ms | Com microfone falso, o medidor reage e o botão alterna Gravar/Pausar | F0.05 | Em validação |
+| F1.02 | Servidor de sessão: WebSocket autenticado, repasse ao provedor, buffer de reenvio, reconexão automática | Queda de 5 s não perde áudio | Rede derrubada no meio do ditado: aviso "reconectando" e texto completo após voltar | F1.01 | Em validação |
+| F1.03 | Adaptador de STT: interface única com Deepgram, AssemblyAI e ElevenLabs, escolha por configuração | Trocar de provedor não muda código fora do adaptador | Mesmo cenário passa com o simulador imitando os três formatos | F1.02 | Em validação |
+| F1.04 | Benchmark (portão): script roda os três provedores com 30 min de áudio do autor e mede erros gerais e em termos jurídicos | Relatório entregue e provedor escolhido | Vira o cenário noturno com o provedor escolhido | F1.03 | Ferramenta pronta (aguarda áudio do autor e chaves) |
+| F1.05 | Áudio bruto no Storage, por segmento, ligado aos blocos de texto | Cada parágrafo aponta para o áudio de origem | "Ouvir trecho" num parágrafo toca o áudio certo | F1.02, F0.04 | Em validação |
+| F1.06 | Provisório e final: texto provisório em cinza, só o final é gravado | Recarregar mantém só o texto final | Simulador envia provisórios e finais; após recarregar, só os finais estão no manuscrito | F1.02 | Em validação |
+| F1.07 | Glossário por livro e por capítulo, enviado ao provedor ao abrir a sessão | Termos do capítulo ativo vão na requisição | Cadastrar "usucapião" e iniciar sessão: o simulador registra o termo recebido | F1.03 | Em validação |
+| F1.08 | Dicionário de grafia: regras aprovadas pelo autor, aplicadas no texto final, com log e desfazer | Toda troca registrada com antes e depois | Ditar "rex": aparece "REsp"; o log mostra a troca; desfazer restaura | F1.06 | Em validação |
+| F1.09 | Remoção opcional de hesitações ("é…", "hã" isolados) | Desligada por padrão; nada fora da lista é removido | Mesmo áudio com a opção ligada e desligada gera os dois textos esperados | F1.06 | Em validação |
+| F1.10 | Guarda de fidelidade: texto gravado = finais do STT + regras aprovadas | Diff zero em todos os cenários | Compara o manuscrito com a transcrição de referência e falha em qualquer diferença | F1.08 | Em validação |
 
 **1B — Comandos de voz**
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Depende de | Status |
 | --- | --- | --- | --- | --- | --- |
-| F1.11 | Ativação: palavra configurável (padrão "Atena"), tecla segurada e pedal USB (que envia uma tecla) | Os três modos marcam o trecho como comando | Comando dito com a palavra e depois segurando a tecla: ambos executam igual | F1.06 | A fazer |
-| F1.12 | Parser de estrutura: capítulo (número e título), seção, subseção, abre/fecha citação, nota/fim da nota, novo parágrafo | Gramática coberta por testes unitários com variações de fala | "Capítulo três, Da posse agrária" cria o título no nível certo | F1.11 | A fazer |
-| F1.13 | Comandos de edição: apaga a última frase, desfaz, refaz | Desfazer reverte também comandos de estrutura | Ditar, "apaga a última frase", "desfaz": texto volta ao estado anterior | F1.12 | A fazer |
-| F1.14 | Fim de comando ("fim" ou pausa de 2 s) e faixa de confirmação na tela | Nenhuma palavra do comando entra no texto | Após o cenário, o texto do comando não aparece no manuscrito nem no Word | F1.11 | A fazer |
-| F1.15 | Proteção contra falso positivo: palavra só vale no início de segmento e fora de citação | Frases comuns do domínio não disparam nada | Áudio com "o comando normativo do artigo" e "Atena" no meio da frase não gera comando | F1.11 | A fazer |
+| F1.11 | Ativação: palavra configurável (padrão "Atena"), tecla segurada e pedal USB (que envia uma tecla) | Os três modos marcam o trecho como comando | Comando dito com a palavra e depois segurando a tecla: ambos executam igual | F1.06 | Em validação |
+| F1.12 | Parser de estrutura: capítulo (número e título), seção, subseção, abre/fecha citação, nota/fim da nota, novo parágrafo | Gramática coberta por testes unitários com variações de fala | "Capítulo três, Da posse agrária" cria o título no nível certo | F1.11 | Em validação |
+| F1.13 | Comandos de edição: apaga a última frase, desfaz, refaz | Desfazer reverte também comandos de estrutura | Ditar, "apaga a última frase", "desfaz": texto volta ao estado anterior | F1.12 | Em validação |
+| F1.14 | Fim de comando ("fim" ou pausa de 2 s) e faixa de confirmação na tela | Nenhuma palavra do comando entra no texto | Após o cenário, o texto do comando não aparece no manuscrito nem no Word | F1.11 | Em validação |
+| F1.15 | Proteção contra falso positivo: palavra só vale no início de segmento e fora de citação | Frases comuns do domínio não disparam nada | Áudio com "o comando normativo do artigo" e "Atena" no meio da frase não gera comando | F1.11 | Em validação |
 
 **1C — Manuscrito e editor**
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Depende de | Status |
 | --- | --- | --- | --- | --- | --- |
-| F1.16 | Modelo do manuscrito: blocos tipados (capítulo, seção, subseção, parágrafo, citação, nota), ordem fracionária, API de inserção e movimentação | Inserir no meio não renumera o livro | Integração: 1.000 blocos inseridos em posições aleatórias mantêm a ordem | F0.04 | A fazer |
-| F1.17 | Editor TipTap com o esquema do livro; cursor de ditado separado do de digitação | Ditado entra na posição do cursor de ditado | Mover o cursor para o meio do capítulo e ditar: o texto entra ali | F1.16 | A fazer |
-| F1.18 | Prévia diagramada: CSS espelhando o modelo Word (página, fontes, recuos) | Autor aprova a prévia de uma página de amostra | Captura de tela da prévia comparada com a referência aprovada | F1.17, F1.22 | A fazer |
-| F1.19 | Sumário lateral: navegação e reordenação de capítulos por arrastar | Reordenar move o capítulo com todo o conteúdo | Arrastar o capítulo 3 para antes do 2 e conferir a ordem no Word | F1.17 | A fazer |
-| F1.20 | Salvamento contínuo e histórico de versões | Nada se perde ao fechar a aba | Fechar a aba no meio do ditado, reabrir e encontrar tudo até o último final | F1.16 | A fazer |
-| F1.21 | Sincronização ao vivo (Supabase Realtime) entre abas e aparelhos | Atraso abaixo de 2 s | Duas abas: o ditado na primeira aparece na segunda | F1.16 | A fazer |
+| F1.16 | Modelo do manuscrito: blocos tipados (capítulo, seção, subseção, parágrafo, citação, nota), ordem fracionária, API de inserção e movimentação | Inserir no meio não renumera o livro | Integração: 1.000 blocos inseridos em posições aleatórias mantêm a ordem | F0.04 | Em validação |
+| F1.17 | Editor TipTap com o esquema do livro; cursor de ditado separado do de digitação | Ditado entra na posição do cursor de ditado | Mover o cursor para o meio do capítulo e ditar: o texto entra ali | F1.16 | Em validação |
+| F1.18 | Prévia diagramada: CSS espelhando o modelo Word (página, fontes, recuos) | Autor aprova a prévia de uma página de amostra | Captura de tela da prévia comparada com a referência aprovada | F1.17, F1.22 | Em validação (aprovação do autor) |
+| F1.19 | Sumário lateral: navegação e reordenação de capítulos por arrastar | Reordenar move o capítulo com todo o conteúdo | Arrastar o capítulo 3 para antes do 2 e conferir a ordem no Word | F1.17 | Em validação |
+| F1.20 | Salvamento contínuo e histórico de versões | Nada se perde ao fechar a aba | Fechar a aba no meio do ditado, reabrir e encontrar tudo até o último final | F1.16 | Em validação |
+| F1.21 | Sincronização ao vivo (Supabase Realtime) entre abas e aparelhos | Atraso abaixo de 2 s | Duas abas: o ditado na primeira aparece na segunda | F1.16 | Em validação |
 
 **1D — Exportação Word**
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Depende de | Status |
 | --- | --- | --- | --- | --- | --- |
-| F1.22 | Modelo .docx próprio: títulos 1 a 3, corpo, citação longa (recuo 4 cm, fonte menor, espaço simples), nota de rodapé, página e margens | Autor aprova a página de amostra | Verificador confere cada estilo no arquivo de amostra | — | A fazer |
-| F1.23 | Serviço de exportação: manuscrito → Markdown do Pandoc → .docx com o modelo | Cada tipo de bloco sai com o estilo certo | Exportar o capítulo do cenário e conferir estilos parágrafo a parágrafo | F1.16, F1.22 | A fazer |
-| F1.24 | Notas de rodapé ditadas pelo autor | Numeração contínua por capítulo ou livro, configurável | Duas notas ditadas viram notas reais do Word, na ordem | F1.23 | A fazer |
-| F1.25 | Opções: capítulo ou livro, download e exportação automática ao fim da sessão | Livro de 300 páginas exportado em menos de 30 s | Encerrar a sessão gera o arquivo na lista de exportações | F1.23 | A fazer |
+| F1.22 | Modelo .docx próprio: títulos 1 a 3, corpo, citação longa (recuo 4 cm, fonte menor, espaço simples), nota de rodapé, página e margens | Autor aprova a página de amostra | Verificador confere cada estilo no arquivo de amostra | — | Em validação (aprovação do autor) |
+| F1.23 | Serviço de exportação: manuscrito → Markdown do Pandoc → .docx com o modelo | Cada tipo de bloco sai com o estilo certo | Exportar o capítulo do cenário e conferir estilos parágrafo a parágrafo | F1.16, F1.22 | Em validação |
+| F1.24 | Notas de rodapé ditadas pelo autor | Numeração contínua por capítulo ou livro, configurável | Duas notas ditadas viram notas reais do Word, na ordem | F1.23 | Em validação |
+| F1.25 | Opções: capítulo ou livro, download e exportação automática ao fim da sessão | Livro de 300 páginas exportado em menos de 30 s | Encerrar a sessão gera o arquivo na lista de exportações | F1.23 | Em validação |
 
 ## Fase 2 — Leis, súmulas e referências ABNT
 
@@ -177,14 +177,14 @@ Os itens transversais não são uma fase: cada um entra no momento indicado e co
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Quando | Status |
 | --- | --- | --- | --- | --- | --- |
-| T.01 | Chaves só no servidor: nenhuma chave de API no código do navegador, rotação documentada | Varredura do bundle não encontra chaves | Teste baixa o JS servido e falha se achar padrão de chave | Fase 0 | Em validação |
-| T.02 | Limites de uso: rate limiting no WebSocket e nas buscas, CORS restrito ao domínio | Excesso recebe erro claro, sem derrubar a sessão | 100 buscas em 10 s: as excedentes recebem aviso e o ditado continua | Fase 1 | A fazer |
-| T.03 | Sigilo do livro: STT em modo de retenção zero, Claude pela API comercial, criptografia em repouso, termo de confidencialidade com o cliente | Configurações documentadas e conferidas | CI verifica que a configuração de retenção zero está ativa | Fase 1 | A fazer |
-| T.04 | Custos: minutos de STT e tokens do Claude por sessão, alerta de teto mensal | Painel mostra o custo do mês | Sessão de teste registra minutos e tokens no painel | Fase 1 | A fazer |
-| T.05 | Desempenho: sessão de 2 h sem vazamento de memória; latência fala → tela abaixo de 1,5 s | Métricas no alvo no teste noturno | Jornada E2E-13 | Fase 1 | A fazer |
-| T.06 | Atalhos e acessibilidade: gravar, comando e aprovar pelo teclado; contraste adequado | Tudo operável sem mouse | Jornada E2E-01 repetida só com teclado | Fase 1 | A fazer |
-| T.07 | Documentação: manual do autor (comandos falados), runbook de operação, README de desenvolvimento | Autor usa o manual sem ajuda | Revisão do manual na sessão piloto | Fases 1 a 4 | A fazer |
-| T.08 | Piloto e treinamento: sessão guiada, ditado de um capítulo real, ajuste de glossário e regras de grafia | Autor aprova o Word do capítulo piloto | Aceite do cliente (fora da automação) | Fim da fase 1 | A fazer |
+| T.01 | Chaves só no servidor: nenhuma chave de API no código do navegador, rotação documentada | Varredura do bundle não encontra chaves | Teste baixa o JS servido e falha se achar padrão de chave | Fase 0 | Concluído |
+| T.02 | Limites de uso: rate limiting no WebSocket e nas buscas, CORS restrito ao domínio | Excesso recebe erro claro, sem derrubar a sessão | 100 buscas em 10 s: as excedentes recebem aviso e o ditado continua | Fase 1 | Em validação |
+| T.03 | Sigilo do livro: STT em modo de retenção zero, Claude pela API comercial, criptografia em repouso, termo de confidencialidade com o cliente | Configurações documentadas e conferidas | CI verifica que a configuração de retenção zero está ativa | Fase 1 | Em validação |
+| T.04 | Custos: minutos de STT e tokens do Claude por sessão, alerta de teto mensal | Painel mostra o custo do mês | Sessão de teste registra minutos e tokens no painel | Fase 1 | Em validação |
+| T.05 | Desempenho: sessão de 2 h sem vazamento de memória; latência fala → tela abaixo de 1,5 s | Métricas no alvo no teste noturno | Jornada E2E-13 | Fase 1 | Em validação |
+| T.06 | Atalhos e acessibilidade: gravar, comando e aprovar pelo teclado; contraste adequado | Tudo operável sem mouse | Jornada E2E-01 repetida só com teclado | Fase 1 | Em validação |
+| T.07 | Documentação: manual do autor (comandos falados), runbook de operação, README de desenvolvimento | Autor usa o manual sem ajuda | Revisão do manual na sessão piloto | Fases 1 a 4 | Em validação |
+| T.08 | Piloto e treinamento: sessão guiada, ditado de um capítulo real, ajuste de glossário e regras de grafia | Autor aprova o Word do capítulo piloto | Aceite do cliente (fora da automação) | Fim da fase 1 | Aguarda o cliente |
 
 ## Jornadas E2E completas
 
@@ -192,7 +192,7 @@ As jornadas cruzam várias tarefas e são o critério de saída de cada fase. To
 
 | ID | Jornada | Passos | Resultado esperado | Fecha a fase | Status |
 | --- | --- | --- | --- | --- | --- |
-| E2E-01 | Capítulo completo no computador | 1) Login 2) Nova obra 3) Áudio com capítulo, seção, três parágrafos, citação e nota 4) Exportar Word | Word com títulos, citação com recuo e nota real; texto idêntico à transcrição | 1 | A fazer |
+| E2E-01 | Capítulo completo no computador | 1) Login 2) Nova obra 3) Áudio com capítulo, seção, três parágrafos, citação e nota 4) Exportar Word | Word com títulos, citação com recuo e nota real; texto idêntico à transcrição | 1 | Em validação |
 | E2E-02 | Artigo de lei até o Word | 1) Ditar 2) "Atena, busca o artigo 1.228 do Código Civil" 3) Aprovar 4) Exportar nos dois estilos | Texto literal do artigo; referência ABNT em nota e em autor-data; sem realce na versão final | 2 | A fazer |
 | E2E-03 | Súmula vigente e cancelada | 1) Pedir súmula vigente e aprovar 2) Pedir súmula cancelada | Vigente entra com referência; cancelada mostra aviso antes de qualquer inserção | 2 | A fazer |
 | E2E-04 | Jurisprudência por tema | 1) "Atena, jurisprudência do STF sobre função social da propriedade rural" 2) "Insere a segunda" 3) Exportar | Painel com 3 candidatos reais; o 2º entra com ementa literal e referência completa | 3 | A fazer |
@@ -200,11 +200,11 @@ As jornadas cruzam várias tarefas e são o critério de saída de cada fase. To
 | E2E-06 | Bloqueio de citação alterada | 1) Simulador do Claude devolve trecho modificado 2) Tentar inserir | Inserção bloqueada; manuscrito inalterado; evento registrado | 2 | A fazer |
 | E2E-07 | Celular sem rede | 1) Emulação de celular 2) Ficar offline 3) Ditar 1 min 4) Voltar online | Texto aparece no ponto certo; áudio no Storage; nada perdido | 3 | A fazer |
 | E2E-08 | Troca entre aparelhos | 1) Ditar no computador 2) Abrir no celular 3) Assumir a sessão e ditar | Celular vê o texto ao vivo; após assumir, só ele grava; computador mostra "sessão em outro aparelho" | 3 | A fazer |
-| E2E-09 | Falso positivo e queda de rede | 1) Áudio com "comando normativo" e "Atena" no meio da frase 2) Derrubar a rede por 5 s no meio | Nenhum comando disparado; texto completo após reconectar | 1 | A fazer |
+| E2E-09 | Falso positivo e queda de rede | 1) Áudio com "comando normativo" e "Atena" no meio da frase 2) Derrubar a rede por 5 s no meio | Nenhum comando disparado; texto completo após reconectar | 1 | Em validação |
 | E2E-10 | Doutrina da biblioteca | 1) Enviar PDF 2) "Atena, busca na biblioteca posse agrária" 3) Aprovar 4) Exportar | Trecho literal com página; referência de livro ABNT | 4 | A fazer |
-| E2E-11 | Fidelidade de ponta a ponta | Roda sobre todas as jornadas acima | Diff zero entre o texto do autor no Word e a transcrição de referência + regras aprovadas | Todas | A fazer |
-| E2E-12 | Segurança | 1) Acessar obra e áudio sem sessão 2) Acessar obra de outro usuário 3) Abrir WebSocket sem token | Tudo recusado, sem vazar conteúdo | 0 | Em validação |
-| E2E-13 | Sessão longa real (noturno) | Áudio de 2 h do autor com o provedor escolhido | Sem quedas nem vazamento de memória; latência abaixo de 1,5 s; taxa de erro dentro do benchmark | 1 | A fazer |
+| E2E-11 | Fidelidade de ponta a ponta | Roda sobre todas as jornadas acima | Diff zero entre o texto do autor no Word e a transcrição de referência + regras aprovadas | Todas | Em validação (fases 0 e 1) |
+| E2E-12 | Segurança | 1) Acessar obra e áudio sem sessão 2) Acessar obra de outro usuário 3) Abrir WebSocket sem token | Tudo recusado, sem vazar conteúdo | 0 | Concluído |
+| E2E-13 | Sessão longa real (noturno) | Áudio de 2 h do autor com o provedor escolhido | Sem quedas nem vazamento de memória; latência abaixo de 1,5 s; taxa de erro dentro do benchmark | 1 | Pronto (aguarda áudio do autor e chave) |
 
 ## Definição de pronto
 

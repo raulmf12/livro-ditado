@@ -12,6 +12,7 @@ export interface SttStreamOptions {
 export interface SttTranscript {
   kind: TranscriptKind
   text: string
+  /** Tempo dentro do áudio enviado a ESTE stream (o pipeline soma o deslocamento). */
   startMs: number
   endMs: number
   /** Resposta original do provedor, guardada para auditoria. */
@@ -25,6 +26,8 @@ export interface SttTranscript {
  */
 export interface SttStream {
   send(chunk: Buffer): void
+  /** Pede ao provedor que feche o trecho atual agora (fim da tecla de comando). */
+  flush(): void
   /** Avisa o fim do áudio e espera os últimos resultados finais. */
   finish(): Promise<void>
   close(): void
@@ -33,3 +36,10 @@ export interface SttStream {
 }
 
 export type SttFactory = (opts: SttStreamOptions) => Promise<SttStream>
+
+/** Configuração de um provedor: como abrir o stream e o que ele cobra por minuto (T.04). */
+export interface SttProvider {
+  name: string
+  create: SttFactory
+  usdPerMinute: number
+}

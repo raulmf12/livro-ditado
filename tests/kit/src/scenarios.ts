@@ -8,8 +8,10 @@ export const AUDIO_DIR = join(FIXTURES_DIR, 'audio')
 export const CLAUDE_DIR = join(FIXTURES_DIR, 'claude')
 
 export interface SttScenarioEvent {
-  /** Quanto áudio (em ms) o simulador precisa ter recebido para emitir o evento. */
+  /** Quanto áudio (em ms) o simulador precisa ter recebido para emitir o evento. Também é o fim do trecho. */
   atMs: number
+  /** Começo do trecho falado; sem ele, o trecho começa onde o anterior terminou (sem pausa). */
+  startMs?: number
   kind: 'interim' | 'final'
   text: string
 }
@@ -23,6 +25,8 @@ export interface SttScenario {
   events: SttScenarioEvent[]
   /** Se presente, o simulador derruba a conexão ao atingir este ponto do áudio. */
   failAtMs?: number
+  /** Repete os eventos sem parar (sessões longas, T.05). */
+  loop?: boolean
 }
 
 export function loadScenario(name: string): SttScenario {
@@ -52,4 +56,13 @@ export function fakeMicArgs(scenario: SttScenario): string[] {
     '--use-fake-device-for-media-stream',
     `--use-file-for-fake-audio-capture=${audioPath(scenario)}`,
   ]
+}
+
+/**
+ * O que deve virar texto no manuscrito: os finais que não são comandos
+ * (guarda de fidelidade, F1.10 e E2E-11). Comandos começam com a palavra de ativação.
+ */
+export function dictatedFinals(scenario: SttScenario, wakeWord = 'Atena'): string[] {
+  const wake = new RegExp(`^${wakeWord}\\b`, 'i')
+  return referenceTranscript(scenario).filter((t) => !wake.test(t.trim()))
 }

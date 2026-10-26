@@ -29,16 +29,21 @@ function open(bookId: string, keywords: string[] = []) {
 
 const audio = (ms: number) => Buffer.alloc(ms * 32)
 const tick = () => new Promise((r) => setTimeout(r, 30))
+/** Espera até a condição valer (as mensagens chegam de forma assíncrona; o CI é mais lento). */
+async function until(pred: () => boolean, ms = 2000) {
+  const end = Date.now() + ms
+  while (!pred() && Date.now() < end) await tick()
+}
 
 describe('simulador de STT', () => {
   it('libera provisórios e finais conforme o áudio chega', async () => {
     const { ws, msgs } = await open('obra-1')
     ws.send(audio(800))
-    await tick()
+    await until(() => msgs.length >= 1)
     expect(msgs.map((m) => m.text)).toEqual(['A função social'])
 
     ws.send(audio(2000))
-    await tick()
+    await until(() => msgs.some((m) => m.kind === 'final'))
     expect(msgs.filter((m) => m.kind === 'final').map((m) => m.text)).toEqual([
       'A função social da propriedade rural é princípio constitucional.',
     ])
@@ -48,7 +53,7 @@ describe('simulador de STT', () => {
   it('no fim do áudio entrega o que falta e avisa "done"', async () => {
     const { ws, msgs } = await open('obra-1')
     ws.send(JSON.stringify({ type: 'finish' }))
-    await tick()
+    await until(() => msgs.at(-1)?.type === 'done')
     const finals = msgs.filter((m) => m.kind === 'final').map((m) => m.text)
     expect(finals).toEqual(referenceTranscript(loadScenario('ditado-simples')))
     expect(msgs.at(-1)).toEqual({ type: 'done' })
@@ -60,9 +65,9 @@ describe('simulador de STT', () => {
     await control.useScenario('pesquisa-artigo', 'obra-2')
     const { ws, msgs } = await open('obra-2', ['usucapião'])
     ws.send(JSON.stringify({ type: 'finish' }))
-    await tick()
+    await until(() => msgs.at(-1)?.type === 'done')
     expect(msgs.find((m) => m.kind === 'final')?.text).toBe('Atena, busca o artigo 1.228 do Código Civil.')
-    expect(await control.requests()).toMatchObject([{ bookId: 'obra-2', keywords: ['usucapião'], scenario: 'pesquisa-artigo' }])
+    expect(await control.requests()).toMatchObject([{ format: 'neutral', bookId: 'obra-2', keywords: ['usucapião'], scenario: 'pesquisa-artigo' }])
     ws.close()
   })
 

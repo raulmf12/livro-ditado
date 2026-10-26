@@ -15,6 +15,9 @@ export default async function ObraLayout({ children }: { children: React.ReactNo
           Ditado do Livro
         </Link>
         <div className="topbar-right">
+          <Link href="/custos" className="muted">
+            Custos
+          </Link>
           <span className="muted" data-testid="usuario">
             {user.email}
           </span>

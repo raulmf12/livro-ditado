@@ -1,0 +1,205 @@
+{
+  "description": "E2E-01: capítulo com seção, três parágrafos, citação longa e duas notas, tudo por voz.",
+  "audio": "capitulo-completo.wav",
+  "segments": [
+    {
+      "speech": "Atena, capítulo um, Da função social da propriedade. Fim."
+    },
+    {
+      "speech": "Atena, seção um, Conceito. Fim."
+    },
+    {
+      "speech": "A função social da propriedade rural é princípio constitucional."
+    },
+    {
+      "speech": "Atena, nota."
+    },
+    {
+      "speech": "Conforme o artigo cento e oitenta e seis da Constituição.",
+      "text": "Conforme o artigo 186 da Constituição."
+    },
+    {
+      "speech": "Atena, fim da nota."
+    },
+    {
+      "speech": "Atena, novo parágrafo."
+    },
+    {
+      "speech": "Diz o Estatuto da Terra:"
+    },
+    {
+      "speech": "Atena, abre citação."
+    },
+    {
+      "speech": "A propriedade da terra desempenha integralmente a sua função social quando favorece o bem-estar dos proprietários."
+    },
+    {
+      "speech": "Atena, fecha citação."
+    },
+    {
+      "speech": "Como se vê, o legislador foi explícito."
+    },
+    {
+      "speech": "Atena, nota."
+    },
+    {
+      "speech": "Ver o Estatuto da Terra, artigo segundo.",
+      "text": "Ver o Estatuto da Terra, art. 2º."
+    },
+    {
+      "speech": "Atena, fim da nota."
+    }
+  ],
+  "events": [
+    {
+      "atMs": 2352,
+      "startMs": 0,
+      "kind": "interim",
+      "text": "Atena, capítulo um, Da função"
+    },
+    {
+      "atMs": 4703,
+      "startMs": 0,
+      "kind": "final",
+      "text": "Atena, capítulo um, Da função social da propriedade. Fim."
+    },
+    {
+      "atMs": 6613,
+      "startMs": 5103,
+      "kind": "interim",
+      "text": "Atena, seção um,"
+    },
+    {
+      "atMs": 8122,
+      "startMs": 5103,
+      "kind": "final",
+      "text": "Atena, seção um, Conceito. Fim."
+    },
+    {
+      "atMs": 10682,
+      "startMs": 8522,
+      "kind": "interim",
+      "text": "A função social da propriedade"
+    },
+    {
+      "atMs": 12842,
+      "startMs": 8522,
+      "kind": "final",
+      "text": "A função social da propriedade rural é princípio constitucional."
+    },
+    {
+      "atMs": 14519,
+      "startMs": 13242,
+      "kind": "final",
+      "text": "Atena, nota."
+    },
+    {
+      "atMs": 16820,
+      "startMs": 14919,
+      "kind": "interim",
+      "text": "Conforme o artigo"
+    },
+    {
+      "atMs": 18720,
+      "startMs": 14919,
+      "kind": "final",
+      "text": "Conforme o artigo 186 da Constituição."
+    },
+    {
+      "atMs": 19945,
+      "startMs": 19120,
+      "kind": "interim",
+      "text": "Atena, fim"
+    },
+    {
+      "atMs": 20769,
+      "startMs": 19120,
+      "kind": "final",
+      "text": "Atena, fim da nota."
+    },
+    {
+      "atMs": 23120,
+      "startMs": 21169,
+      "kind": "final",
+      "text": "Atena, novo parágrafo."
+    },
+    {
+      "atMs": 24403,
+      "startMs": 23520,
+      "kind": "interim",
+      "text": "Diz o Estatuto"
+    },
+    {
+      "atMs": 25286,
+      "startMs": 23520,
+      "kind": "final",
+      "text": "Diz o Estatuto da Terra:"
+    },
+    {
+      "atMs": 27509,
+      "startMs": 25686,
+      "kind": "final",
+      "text": "Atena, abre citação."
+    },
+    {
+      "atMs": 31700,
+      "startMs": 27909,
+      "kind": "interim",
+      "text": "A propriedade da terra desempenha integralmente a sua"
+    },
+    {
+      "atMs": 35491,
+      "startMs": 27909,
+      "kind": "final",
+      "text": "A propriedade da terra desempenha integralmente a sua função social quando favorece o bem-estar dos proprietários."
+    },
+    {
+      "atMs": 37900,
+      "startMs": 35891,
+      "kind": "final",
+      "text": "Atena, fecha citação."
+    },
+    {
+      "atMs": 39777,
+      "startMs": 38300,
+      "kind": "interim",
+      "text": "Como se vê, o"
+    },
+    {
+      "atMs": 41253,
+      "startMs": 38300,
+      "kind": "final",
+      "text": "Como se vê, o legislador foi explícito."
+    },
+    {
+      "atMs": 42931,
+      "startMs": 41653,
+      "kind": "final",
+      "text": "Atena, nota."
+    },
+    {
+      "atMs": 44835,
+      "startMs": 43331,
+      "kind": "interim",
+      "text": "Ver o Estatuto da"
+    },
+    {
+      "atMs": 46339,
+      "startMs": 43331,
+      "kind": "final",
+      "text": "Ver o Estatuto da Terra, art. 2º."
+    },
+    {
+      "atMs": 47564,
+      "startMs": 46739,
+      "kind": "interim",
+      "text": "Atena, fim"
+    },
+    {
+      "atMs": 48388,
+      "startMs": 46739,
+      "kind": "final",
+      "text": "Atena, fim da nota."
+    }
+  ]
+}
