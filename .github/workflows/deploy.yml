@@ -1,0 +1,79 @@
+# F0.03 — Deploy: staging a cada merge na main (depois do CI verde) e produção por tag v*.
+# Fica inativo até existirem a variável STAGING_URL / PRODUCTION_URL e os segredos
+# DEPLOY_HOST e DEPLOY_SSH_KEY (VPS preparada com infra/scripts/provision.sh).
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: deploy-${{ github.event_name == 'push' && 'production' || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event_name == 'push' && 'produção' || 'staging' }}
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.workflow_run.conclusion == 'success'
+    environment: ${{ github.event_name == 'push' && 'production' || 'staging' }}
+    env:
+      APP_ENV: ${{ github.event_name == 'push' && 'production' || 'staging' }}
+      REF: ${{ github.event_name == 'push' && github.ref_name || github.event.workflow_run.head_sha }}
+      APP_URL: ${{ github.event_name == 'push' && vars.PRODUCTION_URL || vars.STAGING_URL }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+    steps:
+      - name: Verifica se a VPS está configurada
+        id: ready
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$APP_URL" ]; then
+            echo "::notice::Deploy de $APP_ENV ignorado: falta DEPLOY_HOST/DEPLOY_SSH_KEY ou a variável da URL (F0.02)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v5
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          ref: ${{ env.REF }}
+          fetch-depth: 0
+      - name: Chave SSH
+        if: steps.ready.outputs.ok == 'true'
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+      - name: Deploy
+        if: steps.ready.outputs.ok == 'true'
+        run: infra/scripts/deploy.sh "$APP_ENV" "$REF"
+      - uses: pnpm/action-setup@v4
+        if: steps.ready.outputs.ok == 'true'
+      - uses: actions/setup-node@v5
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: E2E contra o ambiente publicado
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          CI: 'true'
+          E2E_BASE_URL: ${{ env.APP_URL }}
+          NEXT_PUBLIC_SESSION_WS_URL: ${{ format('{0}/ws', env.APP_URL) }}
+          SUPABASE_URL: ${{ secrets.ENV_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.ENV_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.ENV_SUPABASE_SECRET_KEY }}
+          E2E_PASSWORD: ${{ secrets.ENV_E2E_PASSWORD }}
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @livro/e2e exec playwright install --with-deps chromium
+          export NEXT_PUBLIC_SESSION_WS_URL="${NEXT_PUBLIC_SESSION_WS_URL/https:/wss:}"
+          if [ "$APP_ENV" = production ]; then
+            # produção: só o smoke, sem banco semente (nada de usuário de teste no banco real)
+            E2E_SKIP_SEED=1 pnpm --filter @livro/e2e exec playwright test specs/smoke.spec.ts
+          else
+            pnpm test:e2e
+          fi

@@ -1,0 +1,144 @@
+# F0.02 / F0.08 — Testa a infraestrutura sem VPS:
+#  - imagens: constrói as imagens, sobe Caddy + pilha de staging como na VPS
+#    (domínio staging.localhost, CA local do Caddy) e roda o E2E contra ela;
+#  - backup: backup → banco zerado → restauração → login, obra e áudio de volta,
+#    num Supabase local criado só para o teste.
+name: Infra
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1' # toda segunda, para pegar mudanças nas imagens base
+  workflow_dispatch:
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  imagens:
+    name: Imagens e staging local
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: supabase-dev
+      cancel-in-progress: false
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Arquivos de ambiente como na VPS
+        run: |
+          mkdir -p /tmp/livro/staging
+          cat > /tmp/livro/staging/app.env <<ENV
+          APP_ENV=staging
+          ENV_FILE=/tmp/livro/staging/app.env
+          COMPOSE_PROFILES=simuladores
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+          NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+          NEXT_PUBLIC_SESSION_WS_URL=wss://staging.localhost/ws
+          ALLOWED_ORIGINS=https://staging.localhost
+          SESSION_PORT=4001
+          STT_PROVIDER=mock
+          MOCK_STT_URL=ws://mock-stt:4010/stt
+          SENTRY_DSN=http://public@mock-stt:4040/1
+          SENTRY_ENVIRONMENT=staging
+          EXPORT_PORT=4030
+          ENV
+          cat > /tmp/livro/proxy.env <<ENV
+          STAGING_DOMAIN=staging.localhost
+          PRODUCTION_DOMAIN=production.localhost
+          PROXY_ENV_FILE=/tmp/livro/proxy.env
+          ENV
+          echo "127.0.0.1 staging.localhost" | sudo tee -a /etc/hosts
+      - name: Sobe Caddy e a pilha de staging
+        run: |
+          docker compose -p livro-proxy -f infra/proxy/compose.yaml --env-file /tmp/livro/proxy.env up -d
+          docker compose -p livro-staging -f infra/app/compose.yaml --env-file /tmp/livro/staging/app.env \
+            up -d --build --wait --wait-timeout 300
+      - name: Confere TLS, cabeçalhos, redirecionamento e WebSocket pelo Caddy
+        run: |
+          set -e
+          C="curl -sk --http1.1 --resolve staging.localhost:443:127.0.0.1"
+          test "$($C -o /dev/null -w '%{http_code}' https://staging.localhost/login)" = 200
+          test "$($C -o /dev/null -w '%{http_code} %{redirect_url}' https://staging.localhost/obra)" = "307 https://staging.localhost/login?next=%2Fobra"
+          $C -D - -o /dev/null https://staging.localhost/login | tee /tmp/headers
+          grep -qi '^strict-transport-security:' /tmp/headers
+          grep -qi '^x-frame-options: DENY' /tmp/headers
+          grep -qi '^permissions-policy: microphone=(self)' /tmp/headers
+          ! grep -qi '^x-powered-by' /tmp/headers
+          WS=$($C -o /dev/null -w '%{http_code}' -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+            -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' https://staging.localhost/ws)
+          test "$WS" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4001/health || true)" = 000  # sessão não fica exposta fora do Caddy
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @livro/e2e exec playwright install --with-deps chromium
+      - name: E2E contra o staging local
+        env:
+          E2E_BASE_URL: https://staging.localhost
+          E2E_IGNORE_HTTPS_ERRORS: '1'
+          NEXT_PUBLIC_SESSION_WS_URL: wss://staging.localhost/ws
+          NODE_TLS_REJECT_UNAUTHORIZED: '0'
+          CI: 'true'
+        run: pnpm test:e2e
+      - name: Imagem de backup
+        run: docker build -q --target ops -t livro-ops .
+      - name: Logs da pilha
+        if: failure()
+        run: |
+          docker compose -p livro-staging -f infra/app/compose.yaml --env-file /tmp/livro/staging/app.env logs --no-color --tail 200
+          docker compose -p livro-proxy -f infra/proxy/compose.yaml --env-file /tmp/livro/proxy.env logs --no-color --tail 100
+
+  backup:
+    name: Backup e restauração
+    runs-on: ubuntu-latest
+    env:
+      E2E_PASSWORD: restauracao-${{ github.run_id }}
+      DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Supabase local (aplica as migrações)
+        run: |
+          supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,mailpit,postgres-meta
+          supabase status -o env | sed -n 's/^API_URL=/SUPABASE_URL=/p; s/^PUBLISHABLE_KEY=/SUPABASE_PUBLISHABLE_KEY=/p; s/^SECRET_KEY=/SUPABASE_SECRET_KEY=/p; s/^ANON_KEY=/SUPABASE_PUBLISHABLE_KEY=/p; s/^SERVICE_ROLE_KEY=/SUPABASE_SECRET_KEY=/p' \
+            | tr -d '"' | awk -F= '!seen[$1]++' >> "$GITHUB_ENV"
+      - name: Dados de teste (autores, obras, texto e áudio)
+        run: |
+          pnpm --filter @livro/test-kit exec tsx src/seed-cli.ts
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "insert into public.blocks (book_id, type, position, content)
+            select id, 'paragraph', 'a0', 'Texto do teste de restauração.' from public.books where title = 'Obra semente A'"
+      - run: docker build -q --target ops -t livro-ops .
+      - name: Backup
+        run: |
+          mkdir -p backup
+          docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD/backup:/backups" \
+            -e DB_URL -e SUPABASE_URL -e SUPABASE_SECRET_KEY livro-ops backup
+      - name: Zera o banco (como um projeto novo, só com as migrações)
+        run: supabase db reset
+      - name: Restaura e confere contagens e áudios
+        run: |
+          docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD/backup:/backups" \
+            -e DB_URL -e SUPABASE_URL -e SUPABASE_SECRET_KEY livro-ops restore
+      - name: Autor entra, abre a obra e baixa o áudio
+        run: pnpm --filter @livro/test-kit exec tsx scripts/verify-restore.ts

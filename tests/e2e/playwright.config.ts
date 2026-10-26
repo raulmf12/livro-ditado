@@ -33,10 +33,14 @@ export default defineConfig({
     baseURL: BASE_URL,
     locale: 'pt-BR',
     trace: 'retain-on-failure',
+    // staging de teste no CI usa a CA local do Caddy (*.localhost)
+    ignoreHTTPSErrors: !!process.env.E2E_IGNORE_HTTPS_ERRORS,
     screenshot: 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  // Contra staging (E2E_BASE_URL definido) nada sobe localmente.
+  // Contra staging (E2E_BASE_URL definido) nada sobe localmente e os testes
+  // marcados @local (que controlam os simuladores pela porta local) ficam de fora.
+  grepInvert: process.env.E2E_BASE_URL ? /@local/ : undefined,
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : [

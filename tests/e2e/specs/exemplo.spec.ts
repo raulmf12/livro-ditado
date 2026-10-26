@@ -9,7 +9,7 @@ useFakeMic('ditado-simples')
 const created: string[] = []
 test.afterAll(() => deleteBooks(created))
 
-test('ditado simples: provisório em cinza, finais no manuscrito e no banco', async ({ page }) => {
+test('ditado simples: provisório em cinza, finais no manuscrito e no banco', { tag: '@local' }, async ({ page }) => {
   const scenario = loadScenario('ditado-simples')
   const reference = referenceTranscript(scenario)
   const stt = mockSttControl(STT_CONTROL_URL)

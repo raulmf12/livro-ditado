@@ -9,7 +9,7 @@ useFakeMic('ditado-simples')
 const created: string[] = []
 test.afterAll(() => deleteBooks(created))
 
-test('queda do provedor de transcrição gera aviso amigável', async ({ page }) => {
+test('queda do provedor de transcrição gera aviso amigável', { tag: '@local' }, async ({ page }) => {
   await login(page, 'a')
   const bookId = await createBookViaUi(page, `Falha STT E2E ${Date.now()}`)
   created.push(bookId)

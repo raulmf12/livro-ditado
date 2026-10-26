@@ -1,0 +1,56 @@
+# Uma pilha do app por ambiente (staging, production), atrás do Caddy compartilhado.
+#   APP_ENV=staging ENV_FILE=/opt/livro/staging/app.env \
+#     docker compose -p livro-staging -f infra/app/compose.yaml --env-file /opt/livro/staging/app.env up -d --build --wait
+
+x-app: &app
+  restart: unless-stopped
+  env_file: ${ENV_FILE:?defina ENV_FILE}
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: '5' }
+
+services:
+  web:
+    <<: *app
+    build:
+      context: ../..
+      target: web
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?}
+        NEXT_PUBLIC_SESSION_WS_URL: ${NEXT_PUBLIC_SESSION_WS_URL:?}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${APP_ENV:?defina APP_ENV}
+    image: livro-web:${APP_ENV}
+    networks:
+      default:
+      proxy:
+        aliases: ['${APP_ENV}-web']
+
+  session:
+    <<: *app
+    build: { context: ../.., target: session }
+    image: livro-session:${APP_ENV}
+    networks:
+      default:
+      proxy:
+        aliases: ['${APP_ENV}-session']
+
+  export:
+    <<: *app
+    build: { context: ../.., target: export }
+    image: livro-export:${APP_ENV}
+    # só acessível de dentro da pilha (o web chama o export)
+
+  # Simuladores de STT, Claude e Sentry. Só sobem com COMPOSE_PROFILES=simuladores
+  # (staging enquanto não houver provedor real, F1.03). Nunca em produção.
+  mock-stt:
+    <<: *app
+    profiles: [simuladores]
+    build: { context: ../.., target: mocks }
+    image: livro-mocks:${APP_ENV}
+
+networks:
+  proxy:
+    external: true
+    name: livro-proxy

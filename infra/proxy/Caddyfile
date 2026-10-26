@@ -1,0 +1,28 @@
+# Domínios vêm do proxy.env. Nomes *.localhost usam a CA local do Caddy (teste no CI).
+{
+	email {$ACME_EMAIL:admin@localhost}
+}
+
+(app) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "microphone=(self), camera=(), geolocation=()"
+		-Server
+	}
+	# WebSocket do ditado vai para o servidor de sessão; o resto, para o Next.
+	@ws path /ws
+	reverse_proxy @ws {args[0]}-session:4001
+	reverse_proxy {args[0]}-web:3000
+}
+
+{$STAGING_DOMAIN:staging.localhost} {
+	import app staging
+}
+
+{$PRODUCTION_DOMAIN:production.localhost} {
+	import app production
+}
