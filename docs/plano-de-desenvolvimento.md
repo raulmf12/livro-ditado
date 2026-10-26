@@ -39,14 +39,14 @@ A fase 0 entrega o esqueleto que tudo usa: repositório, deploy, banco com RLS, 
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Depende de | Status |
 | --- | --- | --- | --- | --- | --- |
-| F0.01 | Monorepo (pnpm + Turborepo): `apps/web` (Next.js), `apps/session` (Node WebSocket), `services/export` (Pandoc), `packages/shared` (tipos e esquemas) | Um comando sobe tudo localmente; tipos compartilhados compilam | Smoke: a tela de login abre | — | A fazer |
-| F0.02 | Infra e ambientes: VPS com Docker Compose, Caddy com TLS, domínios de staging e produção, segredos fora do repositório | Deploy de staging reproduzível por script | Smoke roda contra a URL de staging | F0.01 | A fazer |
-| F0.03 | CI/CD no GitHub Actions: lint, typecheck, unitário, integração, E2E com simuladores; staging no merge, produção por tag | PR bloqueado se qualquer etapa falhar | O pipeline executa a suíte E2E completa | F0.01, F0.07 | A fazer |
-| F0.04 | Esquema do banco (migrações Supabase): `books`, `blocks` (árvore com ordem fracionária, origem autor ou IA, status), `dictation_sessions`, `audio_segments`, `transcript_events`, `commands`, `references` (CSL-JSON), `glossary_terms`, `spelling_rules`, `search_logs`; políticas RLS | Migração sobe do zero e reverte; RLS bloqueia acesso cruzado | Usuário B logado não enxerga a obra do usuário A | F0.01 | A fazer |
-| F0.05 | Autenticação: Supabase Auth com e-mail e senha; papéis autor e admin; token validado no WebSocket | Rotas e WebSocket recusam quem não tem sessão | Login, logout; abrir `/obra` sem sessão redireciona ao login | F0.04 | A fazer |
-| F0.06 | Observabilidade: Sentry no front e no servidor, logs estruturados, métrica de latência fala → texto na tela | Erro forçado aparece no Sentry com o ID da sessão | Falha simulada do STT mostra aviso amigável na tela | F0.02 | A fazer |
-| F0.07 | Base de testes: Playwright, microfone falso, simulador de STT, simulador do Claude, verificador de Word, banco semente | Um cenário de exemplo usa todas as peças | O cenário de exemplo passa no CI | F0.01, F0.04 | A fazer |
-| F0.08 | Backup: Postgres diário, versionamento do Storage de áudio, restauração testada | Restauração em staging recupera obra e áudio | Após restaurar, abrir a obra e tocar o áudio de um trecho | F0.02, F0.04 | A fazer |
+| F0.01 | Monorepo (pnpm + Turborepo): `apps/web` (Next.js), `apps/session` (Node WebSocket), `services/export` (Pandoc), `packages/shared` (tipos e esquemas) | Um comando sobe tudo localmente; tipos compartilhados compilam | Smoke: a tela de login abre | — | Em validação |
+| F0.02 | Infra e ambientes: VPS com Docker Compose, Caddy com TLS, domínios de staging e produção, segredos fora do repositório | Deploy de staging reproduzível por script | Smoke roda contra a URL de staging | F0.01 | Em validação (falta VPS) |
+| F0.03 | CI/CD no GitHub Actions: lint, typecheck, unitário, integração, E2E com simuladores; staging no merge, produção por tag | PR bloqueado se qualquer etapa falhar | O pipeline executa a suíte E2E completa | F0.01, F0.07 | Em validação (deploy falta VPS) |
+| F0.04 | Esquema do banco (migrações Supabase): `books`, `blocks` (árvore com ordem fracionária, origem autor ou IA, status), `dictation_sessions`, `audio_segments`, `transcript_events`, `commands`, `references` (CSL-JSON), `glossary_terms`, `spelling_rules`, `search_logs`; políticas RLS | Migração sobe do zero e reverte; RLS bloqueia acesso cruzado | Usuário B logado não enxerga a obra do usuário A | F0.01 | Em validação |
+| F0.05 | Autenticação: Supabase Auth com e-mail e senha; papéis autor e admin; token validado no WebSocket | Rotas e WebSocket recusam quem não tem sessão | Login, logout; abrir `/obra` sem sessão redireciona ao login | F0.04 | Em validação |
+| F0.06 | Observabilidade: Sentry no front e no servidor, logs estruturados, métrica de latência fala → texto na tela | Erro forçado aparece no Sentry com o ID da sessão | Falha simulada do STT mostra aviso amigável na tela | F0.02 | Em validação (falta DSN do Sentry) |
+| F0.07 | Base de testes: Playwright, microfone falso, simulador de STT, simulador do Claude, verificador de Word, banco semente | Um cenário de exemplo usa todas as peças | O cenário de exemplo passa no CI | F0.01, F0.04 | Em validação |
+| F0.08 | Backup: Postgres diário, versionamento do Storage de áudio, restauração testada | Restauração em staging recupera obra e áudio | Após restaurar, abrir a obra e tocar o áudio de um trecho | F0.02, F0.04 | Em validação (falta VPS) |
 
 ## Fase 1 — Ditado no computador e exportação Word
 
@@ -177,7 +177,7 @@ Os itens transversais não são uma fase: cada um entra no momento indicado e co
 
 | ID | Tarefa | Critério de aceite | Teste E2E | Quando | Status |
 | --- | --- | --- | --- | --- | --- |
-| T.01 | Chaves só no servidor: nenhuma chave de API no código do navegador, rotação documentada | Varredura do bundle não encontra chaves | Teste baixa o JS servido e falha se achar padrão de chave | Fase 0 | A fazer |
+| T.01 | Chaves só no servidor: nenhuma chave de API no código do navegador, rotação documentada | Varredura do bundle não encontra chaves | Teste baixa o JS servido e falha se achar padrão de chave | Fase 0 | Em validação |
 | T.02 | Limites de uso: rate limiting no WebSocket e nas buscas, CORS restrito ao domínio | Excesso recebe erro claro, sem derrubar a sessão | 100 buscas em 10 s: as excedentes recebem aviso e o ditado continua | Fase 1 | A fazer |
 | T.03 | Sigilo do livro: STT em modo de retenção zero, Claude pela API comercial, criptografia em repouso, termo de confidencialidade com o cliente | Configurações documentadas e conferidas | CI verifica que a configuração de retenção zero está ativa | Fase 1 | A fazer |
 | T.04 | Custos: minutos de STT e tokens do Claude por sessão, alerta de teto mensal | Painel mostra o custo do mês | Sessão de teste registra minutos e tokens no painel | Fase 1 | A fazer |
@@ -203,7 +203,7 @@ As jornadas cruzam várias tarefas e são o critério de saída de cada fase. To
 | E2E-09 | Falso positivo e queda de rede | 1) Áudio com "comando normativo" e "Atena" no meio da frase 2) Derrubar a rede por 5 s no meio | Nenhum comando disparado; texto completo após reconectar | 1 | A fazer |
 | E2E-10 | Doutrina da biblioteca | 1) Enviar PDF 2) "Atena, busca na biblioteca posse agrária" 3) Aprovar 4) Exportar | Trecho literal com página; referência de livro ABNT | 4 | A fazer |
 | E2E-11 | Fidelidade de ponta a ponta | Roda sobre todas as jornadas acima | Diff zero entre o texto do autor no Word e a transcrição de referência + regras aprovadas | Todas | A fazer |
-| E2E-12 | Segurança | 1) Acessar obra e áudio sem sessão 2) Acessar obra de outro usuário 3) Abrir WebSocket sem token | Tudo recusado, sem vazar conteúdo | 0 | A fazer |
+| E2E-12 | Segurança | 1) Acessar obra e áudio sem sessão 2) Acessar obra de outro usuário 3) Abrir WebSocket sem token | Tudo recusado, sem vazar conteúdo | 0 | Em validação |
 | E2E-13 | Sessão longa real (noturno) | Áudio de 2 h do autor com o provedor escolhido | Sem quedas nem vazamento de memória; latência abaixo de 1,5 s; taxa de erro dentro do benchmark | 1 | A fazer |
 
 ## Definição de pronto

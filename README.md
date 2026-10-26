@@ -13,7 +13,11 @@ Sistema de ditado por voz do livro jurídico. O plano completo, com fases, taref
 | `packages/eslint-config` | Regras de lint comuns |
 | `tests/kit` | Base de testes: simulador de STT, simulador do Claude, cenários com áudio, verificador de Word, banco semente |
 | `tests/e2e` | Jornadas E2E (Playwright) |
+| `tools/ops` | Backup e restauração (pg_dump + espelho versionado do áudio) |
+| `infra` | Dockerfile, Compose por ambiente, Caddy e scripts da VPS |
 | `supabase/migrations` | Migrações do banco; a reversão de cada uma fica em `supabase/rollbacks` |
+
+Operação (deploy, backup, rotação de chaves, incidentes): [docs/runbook.md](docs/runbook.md). Roteiro de validação da fase 0: [docs/validacao-fase-0.md](docs/validacao-fase-0.md).
 
 ## Primeiros passos
 
@@ -25,12 +29,12 @@ cp .env.example .env              # e preencha as chaves do Supabase
 pnpm --filter @livro/test-kit setup:py
 pnpm --filter @livro/e2e install:browsers
 pnpm seed                         # autores de teste e obras semente
-pnpm dev                          # web :3000, sessão :4001, simuladores :4010/:4020, exportação :4030
+pnpm dev                          # web :3000, sessão :4001, simuladores :4010/:4020/:4040, exportação :4030
 ```
 
 Abra http://localhost:3000 e entre com `autor-a@example.com` e a senha `E2E_PASSWORD` do `.env`. Em desenvolvimento a transcrição vem do simulador, que devolve o texto do cenário `ditado-simples` para qualquer áudio.
 
-Não há cadastro público. Para criar a conta do autor, use `pnpm user:create email@dominio`; para um admin, acrescente `--admin`.
+Não há cadastro público (desligado também no Supabase). Para criar a conta do autor, use `pnpm user:create email@dominio`; para um admin, acrescente `--admin`.
 
 ## Testes
 
@@ -53,15 +57,17 @@ Toda tabela tem RLS: cada autor só enxerga as próprias obras e tudo o que pend
 
 ## Estado da fase 0
 
-| ID | Status | Observação |
+Tudo o que não depende de servidor próprio está pronto e testado no CI. Falta só demonstrar em staging de verdade, que depende de VPS e domínios.
+
+| ID | Status | Como foi verificado |
 | --- | --- | --- |
-| F0.01 Monorepo | Feito | `pnpm dev` sobe tudo; smoke E2E passa |
-| F0.02 Infra e ambientes | A fazer | Depende de VPS e domínios |
-| F0.03 CI/CD | Parcial | Workflow pronto (lint, typecheck, unitário, integração, E2E); falta cadastrar os segredos e o deploy |
-| F0.04 Esquema e RLS | Feito | Sobe do zero, reverte e sobe de novo; 12 testes de integração de RLS |
-| F0.05 Autenticação | Feito | Login/logout, proxy e WebSocket com token; papéis `autor`/`admin` em `profiles` |
-| F0.06 Observabilidade | Parcial | Logs estruturados e aviso amigável de falha do STT (E2E); falta Sentry e métrica de latência |
-| F0.07 Base de testes | Feito | Exemplo E2E: microfone falso → sessão → simulador de STT → tela e banco. O simulador do Claude e o verificador de Word têm autotestes próprios e entram nas jornadas quando existirem pesquisa (F2) e exportação (F1.23) |
-| F0.08 Backup | A fazer | Depende de F0.02 |
-| T.01 Chaves só no servidor | Feito | E2E varre o JS servido |
-| E2E-12 Segurança | Feito | Sem sessão, obra de outro usuário e WebSocket sem token: tudo recusado |
+| F0.01 Monorepo | Pronto | `pnpm dev` sobe tudo; smoke E2E |
+| F0.02 Infra e ambientes | Pronto, aguardando VPS | Imagens, Compose e Caddy sobem no CI como na VPS, e o E2E passa contra essa pilha; scripts de provisionamento e deploy |
+| F0.03 CI/CD | Pronto, deploy aguardando VPS | CI completo em todo PR; deploy de staging após CI verde e de produção por tag (inativo até existirem os segredos da VPS) |
+| F0.04 Esquema e RLS | Pronto | Migrações sobem, revertem e sobem; 12 testes de integração de RLS |
+| F0.05 Autenticação | Pronto | Login, logout, proxy e WebSocket com token; papéis `autor`/`admin`; cadastro público desligado |
+| F0.06 Observabilidade | Pronto, aguardando DSN | Erro com ID da sessão chega ao Sentry (simulado no E2E); latência p50/p95 por sessão; aviso amigável |
+| F0.07 Base de testes | Pronto | Exemplo E2E com microfone falso, simuladores de STT, Claude e Sentry, verificador de Word e banco semente |
+| F0.08 Backup | Pronto, aguardando VPS | No CI: backup, banco zerado, restauração; login, obra e áudio voltam |
+| T.01 Chaves só no servidor | Pronto | E2E varre o JS servido; rotação no runbook |
+| E2E-12 Segurança | Pronto | No CI local e contra a pilha com Caddy |
