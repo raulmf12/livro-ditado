@@ -117,6 +117,12 @@ function connect() {
 }
 
 const settle = () => new Promise((r) => setTimeout(r, 50))
+/** Espera a condição valer: as gravações no banco são assíncronas (e o CI é mais lento). */
+async function until(pred: () => boolean, ms = 3000) {
+  const end = Date.now() + ms
+  while (!pred() && Date.now() < end) await settle()
+  expect(pred()).toBe(true)
+}
 const texts = () => mem.m.ordered().map((b) => `${b.type}: ${b.content}`)
 
 describe('handshake', () => {
@@ -148,7 +154,7 @@ describe('sessão de ditado', () => {
     stt.final('No rex, a posse agrária exige exploração.', 0, 1000)
     const ops = await c.waitFor('ops')
     expect(ops.ops[0]).toMatchObject({ op: 'insert', block: { type: 'paragraph' } })
-    await settle()
+    await until(() => mem.state.textChanges.length === 1 && mem.state.transcripts.length === 1)
 
     expect(texts()).toEqual(['paragraph: No REsp, a posse agrária exige exploração.'])
     expect(mem.state.textChanges).toHaveLength(1) // a troca de grafia ficou registrada
@@ -169,7 +175,7 @@ describe('sessão de ditado', () => {
     await c.waitFor('ready')
     stt.final('Atena, capítulo três, Da posse agrária. Fim.')
     expect(await c.waitFor('command')).toEqual({ type: 'command', status: 'executed', label: 'Capítulo 3: Da posse agrária' })
-    await settle()
+    await until(() => mem.state.commands.length === 1)
     expect(texts()).toEqual(['chapter: Da posse agrária'])
     expect(mem.state.commands).toMatchObject([{ status: 'executed', activation: 'wake_word' }])
   })
@@ -181,11 +187,10 @@ describe('sessão de ditado', () => {
     c.audio(1, 12)
     c.ws.send(JSON.stringify({ type: 'command_key', down: true, audioMs: 0 }))
     c.ws.send(JSON.stringify({ type: 'command_key', down: false, audioMs: 1200 }))
-    await settle()
-    expect(stt.streams[0]!.flushes).toBe(1) // soltar a tecla fecha o trecho no provedor
+    await until(() => stt.streams[0]!.flushes === 1) // soltar a tecla fecha o trecho no provedor
     stt.final('capítulo dois, Da propriedade', 100, 1100)
     await c.waitFor('command')
-    await settle()
+    await until(() => mem.state.commands.length === 1)
     expect(texts()).toEqual(['chapter: Da propriedade'])
     expect(mem.state.commands).toMatchObject([{ activation: 'key' }])
   })
@@ -197,11 +202,11 @@ describe('sessão de ditado', () => {
     first.audio(1, 10)
     await first.waitFor('ack', (m) => m.seq === 10)
     first.ws.terminate() // rede caiu
-    await settle()
+    await new Promise((r) => setTimeout(r, 200))
 
     // enquanto o navegador está fora, o provedor ainda devolve um final
     stt.final('Texto ditado durante a queda.')
-    await settle()
+    await until(() => mem.state.transcripts.length === 1)
 
     const second = await connect()
     second.ws.send(JSON.stringify({ type: 'resume', sessionId }))
@@ -230,8 +235,7 @@ describe('sessão de ditado', () => {
     c.audio(1, 10)
     await c.waitFor('ack', (m) => m.seq === 10)
     stt.streams[0]!.fail(new Error('provedor caiu'))
-    await settle()
-    expect(stt.streams).toHaveLength(2)
+    await until(() => stt.streams.length === 2 && stt.streams[1]!.received === 10 * 3200)
     expect(stt.streams[1]!.received).toBe(10 * 3200) // o segundo stream recebeu o áudio de novo
     stt.final('Depois da queda do provedor.')
     await c.waitFor('ops')
