@@ -221,6 +221,18 @@ describe('sessão de ditado', () => {
     expect(texts()).toEqual(['paragraph: Texto ditado durante a queda.'])
   })
 
+  it('pedaço de áudio perdido: o servidor pede o reenvio e segue', async () => {
+    const c = await connect()
+    c.ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
+    await c.waitFor('ready')
+    c.audio(1, 4)
+    c.audio(6, 7) // o 5 se perdeu
+    expect(await c.waitFor('resend')).toEqual({ type: 'resend', fromSeq: 5 })
+    c.audio(5, 10)
+    await c.waitFor('ack', (m) => m.seq === 10)
+    expect(stt.streams[0]!.received).toBe(10 * 3200)
+  })
+
   it('retomar sessão que não existe', async () => {
     const c = await connect()
     c.ws.send(JSON.stringify({ type: 'resume', sessionId: crypto.randomUUID() }))

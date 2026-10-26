@@ -44,6 +44,7 @@ export class LiveSession {
   private channel: ClientChannel | null = null
   private outbox: ServerMessage[] = []
   private lastSeq = 0
+  private lastResendRequest = 0
   private keyWindows: { downMs: number; upMs: number | null }[] = []
   private audio = new PcmBuffer()
   private segmentSeq = 0
@@ -153,7 +154,15 @@ export class LiveSession {
     const decoded = decodeAudioFrame(frame)
     if (!decoded || this.ended) return
     if (decoded.seq <= this.lastSeq) return // reenvio de algo que já chegou
-    if (decoded.seq !== this.lastSeq + 1) return // fora de ordem: o navegador reenvia a partir do último ack
+    if (decoded.seq !== this.lastSeq + 1) {
+      // buraco na sequência: pede o reenvio do que falta (no máximo uma vez a cada 500 ms)
+      const now = Date.now()
+      if (now - this.lastResendRequest > 500) {
+        this.lastResendRequest = now
+        this.send({ type: 'resend', fromSeq: this.lastSeq + 1 })
+      }
+      return
+    }
     this.lastSeq = decoded.seq
     const pcm = Buffer.from(decoded.pcm)
     this.pipeline.send(pcm)
@@ -308,7 +317,7 @@ export class LiveSession {
 
   private send(msg: ServerMessage) {
     if (this.channel) this.channel.send(msg)
-    else if (msg.type !== 'ack' && msg.type !== 'transcript') {
+    else if (msg.type !== 'ack' && msg.type !== 'transcript' && msg.type !== 'resend') {
       this.outbox.push(msg)
       if (this.outbox.length > MAX_OUTBOX) this.outbox.shift()
     }

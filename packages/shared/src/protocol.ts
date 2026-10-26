@@ -97,6 +97,8 @@ export const ServerMessage = z.discriminatedUnion('type', [
   /** Sessão retomada; reenvie o áudio a partir de ackSeq + 1. */
   z.object({ type: z.literal('resumed'), sessionId: z.uuid(), ackSeq: z.number().int().nonnegative() }),
   z.object({ type: z.literal('ack'), seq: z.number().int().nonnegative() }),
+  /** Faltou um pedaço de áudio (descartado por excesso ou perdido): reenvie a partir de fromSeq. */
+  z.object({ type: z.literal('resend'), fromSeq: z.number().int().positive() }),
   z.object({
     type: z.literal('transcript'),
     kind: TranscriptKind,

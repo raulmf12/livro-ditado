@@ -93,7 +93,8 @@ export function Workspace({ bookId, initialBlocks, settings }: Props) {
       body: JSON.stringify({ ops }),
     }).catch(() => null)
     if (res?.ok) {
-      setSaving('salvo')
+      // "Salvo" só quando não há outro salvamento agendado (o autor continuou digitando)
+      setSaving(saveTimer.current ? 'salvando' : 'salvo')
     } else {
       setSaving('erro')
       await reload()
@@ -104,6 +105,7 @@ export function Workspace({ bookId, initialBlocks, settings }: Props) {
     setSaving('salvando')
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null
       pendingSave.current = pendingSave.current.then(save)
     }, SAVE_DEBOUNCE_MS)
   }, [save])

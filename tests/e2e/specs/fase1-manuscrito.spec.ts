@@ -100,6 +100,8 @@ test('F1.20: o que se digita é salvo, aparece no histórico e pode ser restaura
     .filter({ has: page.locator('td:nth-child(3)', { hasText: /^Texto original\.$/ }) })
   await expect(row).toHaveCount(1)
   await row.getByRole('button', { name: 'Restaurar' }).click()
+  // a restauração vira uma mudança nova no topo do histórico; só então sai da página
+  await expect(page.getByTestId('historico').locator('tbody tr').first().locator('td:nth-child(4)')).toHaveText('Texto original.')
   await page.goto(`/obra/${bookId}`)
   await expect.poll(async () => (await editorBlocks(page))[1]?.text).toBe('Texto original.')
 })

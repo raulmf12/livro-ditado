@@ -146,6 +146,9 @@ export class DictationClient {
       case 'ack':
         this.ack(msg.seq)
         break
+      case 'resend':
+        for (const { seq, frame } of this.unacked) if (seq >= msg.fromSeq) this.ws?.send(frame)
+        break
       case 'transcript':
         if (msg.kind === 'final') this.reportLatency(msg.endMs)
         break

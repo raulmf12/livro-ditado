@@ -26,7 +26,7 @@ describe.skipIf(!minutes)(`sessão de ${minutes} min (T.05)`, () => {
       stt: { name: 'mock', create: mock(`ws://127.0.0.1:${sttPort}/stt`), usdPerMinute: 0 },
       allowedOrigins: [],
       log: silentLogger,
-      limits: { audio: { rate: 10_000, burst: 10_000 } },
+      limits: { audio: { rate: 1e9, burst: 1e9 } },
     })
     const port = await app.listen(0, '127.0.0.1')
 
@@ -38,13 +38,14 @@ describe.skipIf(!minutes)(`sessão de ${minutes} min (T.05)`, () => {
     const total = minutes * 600 // pedaços de 100 ms
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, [PROTOCOL_VERSION, authProtocol('x')])
     let lastAck = 0
+    const errors: string[] = []
     let ready!: () => void
     const isReady = new Promise<void>((r) => (ready = r))
     ws.on('message', (d) => {
       const msg = JSON.parse(d.toString()) as { type: string; seq?: number }
       if (msg.type === 'ready') ready()
       if (msg.type === 'ack') lastAck = msg.seq!
-      if (msg.type === 'error') throw new Error(`sessão caiu: ${d.toString()}`)
+      if (msg.type === 'error') errors.push(d.toString())
     })
     await new Promise((r) => ws.on('open', r))
     ws.send(JSON.stringify({ type: 'start', bookId: BOOK_ID }))
@@ -75,6 +76,7 @@ describe.skipIf(!minutes)(`sessão de ${minutes} min (T.05)`, () => {
     await stt.close()
 
     console.log(`sessão de ${minutes} min: memória +${growthMb.toFixed(1)} MB; ${textChars} caracteres; ${mem.state.segments.length} trechos de áudio`)
+    expect(errors).toEqual([])
     expect(lastAck).toBeGreaterThanOrEqual(total - 5)
     expect(textChars).toBeGreaterThan(minutes * 500) // o texto continuou entrando
     // o manuscrito em memória cresce com o texto; o resto (áudio, filas) precisa ficar estável
